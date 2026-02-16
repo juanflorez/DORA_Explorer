@@ -10,6 +10,9 @@ dist/
 node_modules/
 frontend/dist/
 
+# Secrets
+code.az
+
 # IDE
 .vscode/
 .idea/
