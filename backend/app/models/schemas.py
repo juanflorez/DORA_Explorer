@@ -14,13 +14,13 @@ class RepoRequest(AzureCredentials):
     project: str
 
 
-class EnvironmentRequest(AzureCredentials):
+class PipelineRequest(AzureCredentials):
     project: str
 
 
-class DeploymentRequest(AzureCredentials):
+class BuildsRequest(AzureCredentials):
     project: str
-    environment_id: int
+    definition_id: int
 
 
 class ProjectItem(BaseModel):
@@ -33,14 +33,16 @@ class RepoItem(BaseModel):
     name: str
 
 
-class EnvironmentItem(BaseModel):
+class PipelineItem(BaseModel):
     id: int
     name: str
 
 
-class DeploymentRecord(BaseModel):
+class BuildRecord(BaseModel):
     id: int
+    build_number: str
     pipeline_name: str
     result: str
+    status: str
     started_on: str
     finished_on: str

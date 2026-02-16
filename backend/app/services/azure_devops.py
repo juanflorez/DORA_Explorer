@@ -36,8 +36,8 @@ async def list_repos(org: str, project: str, pat: str) -> list[dict]:
         return resp.json()["value"]
 
 
-async def list_environments(org: str, project: str, pat: str) -> list[dict]:
-    url = f"{BASE_URL}/{org}/{project}/_apis/distributedtask/environments"
+async def list_pipelines(org: str, project: str, pat: str) -> list[dict]:
+    url = f"{BASE_URL}/{org}/{project}/_apis/pipelines"
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             url,
@@ -48,23 +48,22 @@ async def list_environments(org: str, project: str, pat: str) -> list[dict]:
         return resp.json()["value"]
 
 
-async def get_deployments(
-    org: str, project: str, environment_id: int, pat: str
+async def get_builds(
+    org: str, project: str, definition_id: int, pat: str
 ) -> list[dict]:
-    """Get deployment records for an environment from the past 6 months."""
-    url = (
-        f"{BASE_URL}/{org}/{project}/_apis/distributedtask/environments"
-        f"/{environment_id}/environmentdeploymentrecords"
-    )
+    """Get build runs for a pipeline definition from the past 6 months."""
     six_months_ago = datetime.now(UTC) - timedelta(days=180)
+    url = f"{BASE_URL}/{org}/{project}/_apis/build/builds"
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             url,
             headers=_auth_header(pat),
             params={
                 "api-version": API_VERSION,
-                "top": 500,
-                "minStartedTime": six_months_ago.isoformat(),
+                "definitions": str(definition_id),
+                "minTime": six_months_ago.isoformat(),
+                "queryOrder": "finishTimeDescending",
+                "$top": 500,
             },
         )
         resp.raise_for_status()

@@ -11,28 +11,24 @@ interface RepoItem {
   name: string;
 }
 
-interface EnvironmentItem {
+interface PipelineItem {
   id: number;
   name: string;
 }
 
-interface DeploymentRecord {
+interface BuildRecord {
   id: number;
+  build_number: string;
   pipeline_name: string;
   result: string;
+  status: string;
   started_on: string;
   finished_on: string;
 }
 
-type Step = "credentials" | "project" | "repo" | "environment" | "deployments";
+type Step = "credentials" | "project" | "repo" | "pipeline" | "builds";
 
-const STEPS: Step[] = [
-  "credentials",
-  "project",
-  "repo",
-  "environment",
-  "deployments",
-];
+const STEPS: Step[] = ["credentials", "project", "repo", "pipeline", "builds"];
 
 function stepIndex(step: Step) {
   return STEPS.indexOf(step);
@@ -51,10 +47,10 @@ function App() {
   const [repos, setRepos] = useState<RepoItem[]>([]);
   const [selectedRepo, setSelectedRepo] = useState("");
 
-  const [environments, setEnvironments] = useState<EnvironmentItem[]>([]);
-  const [selectedEnvId, setSelectedEnvId] = useState<number | "">("");
+  const [pipelines, setPipelines] = useState<PipelineItem[]>([]);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<number | "">("");
 
-  const [deployments, setDeployments] = useState<DeploymentRecord[]>([]);
+  const [builds, setBuilds] = useState<BuildRecord[]>([]);
 
   async function postApi<T>(path: string, body: object): Promise<T> {
     const resp = await fetch(`/api${path}`, {
@@ -83,44 +79,44 @@ function App() {
     }
   }
 
-  async function fetchReposAndEnvs() {
+  async function fetchReposAndPipelines() {
     setError("");
     setLoading(true);
     try {
-      const [repoData, envData] = await Promise.all([
+      const [repoData, pipelineData] = await Promise.all([
         postApi<RepoItem[]>("/repos", { org, pat, project: selectedProject }),
-        postApi<EnvironmentItem[]>("/environments", {
+        postApi<PipelineItem[]>("/pipelines", {
           org,
           pat,
           project: selectedProject,
         }),
       ]);
       setRepos(repoData);
-      setEnvironments(envData);
+      setPipelines(pipelineData);
       setStep("repo");
     } catch (e: unknown) {
       setError(
-        e instanceof Error ? e.message : "Failed to fetch repos/environments"
+        e instanceof Error ? e.message : "Failed to fetch repos/pipelines"
       );
     } finally {
       setLoading(false);
     }
   }
 
-  async function fetchDeployments() {
+  async function fetchBuilds() {
     setError("");
     setLoading(true);
     try {
-      const data = await postApi<DeploymentRecord[]>("/deployments", {
+      const data = await postApi<BuildRecord[]>("/builds", {
         org,
         pat,
         project: selectedProject,
-        environment_id: selectedEnvId,
+        definition_id: selectedPipelineId,
       });
-      setDeployments(data);
-      setStep("deployments");
+      setBuilds(data);
+      setStep("builds");
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to fetch deployments");
+      setError(e instanceof Error ? e.message : "Failed to fetch builds");
     } finally {
       setLoading(false);
     }
@@ -130,11 +126,11 @@ function App() {
     setStep("credentials");
     setProjects([]);
     setRepos([]);
-    setEnvironments([]);
-    setDeployments([]);
+    setPipelines([]);
+    setBuilds([]);
     setSelectedProject("");
     setSelectedRepo("");
-    setSelectedEnvId("");
+    setSelectedPipelineId("");
     setError("");
   }
 
@@ -172,10 +168,7 @@ function App() {
             onChange={(e) => setPat(e.target.value)}
             placeholder="paste your PAT"
           />
-          <button
-            onClick={fetchProjects}
-            disabled={loading || !org || !pat}
-          >
+          <button onClick={fetchProjects} disabled={loading || !org || !pat}>
             {loading ? "Connecting…" : "Connect"}
           </button>
         </div>
@@ -200,7 +193,7 @@ function App() {
             ))}
           </select>
           <button
-            onClick={fetchReposAndEnvs}
+            onClick={fetchReposAndPipelines}
             disabled={loading || !selectedProject}
           >
             {loading ? "Loading…" : "Next"}
@@ -210,10 +203,7 @@ function App() {
 
       {step === "repo" && (
         <div className="card">
-          <button
-            className="back-link"
-            onClick={() => setStep("project")}
-          >
+          <button className="back-link" onClick={() => setStep("project")}>
             ← Back to project
           </button>
           <label htmlFor="repo">Select Repository</label>
@@ -230,7 +220,7 @@ function App() {
             ))}
           </select>
           <button
-            onClick={() => setStep("environment")}
+            onClick={() => setStep("pipeline")}
             disabled={!selectedRepo}
           >
             Next
@@ -238,76 +228,81 @@ function App() {
         </div>
       )}
 
-      {step === "environment" && (
+      {step === "pipeline" && (
         <div className="card">
-          <button
-            className="back-link"
-            onClick={() => setStep("repo")}
-          >
+          <button className="back-link" onClick={() => setStep("repo")}>
             ← Back to repo
           </button>
-          <label htmlFor="env">Select Deployment Environment</label>
+          <label htmlFor="pipeline">Select Pipeline</label>
           <select
-            id="env"
-            value={selectedEnvId}
-            onChange={(e) => setSelectedEnvId(Number(e.target.value))}
+            id="pipeline"
+            value={selectedPipelineId}
+            onChange={(e) => setSelectedPipelineId(Number(e.target.value))}
           >
             <option value="">-- choose --</option>
-            {environments.map((env) => (
-              <option key={env.id} value={env.id}>
-                {env.name}
+            {pipelines.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
               </option>
             ))}
           </select>
           <button
-            onClick={fetchDeployments}
-            disabled={loading || selectedEnvId === ""}
+            onClick={fetchBuilds}
+            disabled={loading || selectedPipelineId === ""}
           >
-            {loading ? "Loading…" : "Fetch Deployments"}
+            {loading ? "Loading…" : "Fetch Builds"}
           </button>
         </div>
       )}
 
-      {step === "deployments" && (
+      {step === "builds" && (
         <div className="card">
-          <button className="back-link" onClick={() => setStep("environment")}>
-            ← Back to environment
+          <button className="back-link" onClick={() => setStep("pipeline")}>
+            ← Back to pipeline
           </button>
           <h2 style={{ marginBottom: "0.75rem", fontSize: "1.125rem" }}>
-            Deployments — past 6 months
+            Builds — past 6 months
           </h2>
-          {deployments.length === 0 ? (
-            <p>No deployments found.</p>
+          {builds.length === 0 ? (
+            <p>No builds found.</p>
           ) : (
             <table>
               <thead>
                 <tr>
                   <th>Pipeline</th>
+                  <th>Build #</th>
                   <th>Result</th>
                   <th>Started</th>
                   <th>Finished</th>
                 </tr>
               </thead>
               <tbody>
-                {deployments.map((d) => (
-                  <tr key={d.id}>
-                    <td>{d.pipeline_name}</td>
+                {builds.map((b) => (
+                  <tr key={b.id}>
+                    <td>{b.pipeline_name}</td>
+                    <td>{b.build_number}</td>
                     <td>
                       <span
-                        className={`result-badge ${d.result === "succeeded" ? "succeeded" : "failed"}`}
+                        className={`result-badge ${b.result === "succeeded" ? "succeeded" : "failed"}`}
                       >
-                        {d.result}
+                        {b.result}
                       </span>
                     </td>
-                    <td>{new Date(d.started_on).toLocaleString()}</td>
-                    <td>{new Date(d.finished_on).toLocaleString()}</td>
+                    <td>{new Date(b.started_on).toLocaleString()}</td>
+                    <td>{new Date(b.finished_on).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-          <p style={{ marginTop: "0.75rem", fontSize: "0.8125rem", color: "#6b7280" }}>
-            Total: {deployments.length} deployment{deployments.length !== 1 && "s"}
+          <p
+            style={{
+              marginTop: "0.75rem",
+              fontSize: "0.8125rem",
+              color: "#6b7280",
+            }}
+          >
+            Total: {builds.length} build{builds.length !== 1 && "s"}
           </p>
         </div>
       )}
