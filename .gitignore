@@ -12,6 +12,7 @@ frontend/dist/
 
 # Secrets
 code.az
+env.tks
 
 # IDE
 .vscode/
