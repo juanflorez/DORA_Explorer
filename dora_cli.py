@@ -215,10 +215,9 @@ async def compute_lead_times_by_month(
         result[mk] = {"avg_hours": avg / 3600, "sample_size": len(times)}
         all_times.extend(times)
 
+    result["_overall"] = {"avg_hours": None, "sample_size": 0}
     if all_times:
         result["_overall"] = {"avg_hours": sum(all_times) / len(all_times) / 3600, "sample_size": len(all_times)}
-    else:
-        result["_overall"] = {"avg_hours": None, "sample_size": 0}
     return result
 
 
@@ -233,14 +232,12 @@ def compute_change_failure_rate_by_month(builds: list[dict]) -> dict[str, dict]:
         failed = [b for b in completed if b.get("result") in ("failed", "partiallySucceeded")]
         all_failed += len(failed)
         all_completed += len(completed)
+        result[mk] = {"rate_pct": None, "failed": 0, "total": 0}
         if completed:
             result[mk] = {"rate_pct": len(failed) / len(completed) * 100, "failed": len(failed), "total": len(completed)}
-        else:
-            result[mk] = {"rate_pct": None, "failed": 0, "total": 0}
+    result["_overall"] = {"rate_pct": None, "failed": 0, "total": 0}
     if all_completed:
         result["_overall"] = {"rate_pct": all_failed / all_completed * 100, "failed": all_failed, "total": all_completed}
-    else:
-        result["_overall"] = {"rate_pct": None, "failed": 0, "total": 0}
     return result
 
 
@@ -261,11 +258,12 @@ def compute_mttr_by_month(builds: list[dict]) -> dict[str, dict]:
         sorted_builds = sorted(pipeline_builds, key=lambda b: parse_dt(b["finishTime"]))
         last_failure_time = None
         for b in sorted_builds:
-            result = b["result"]
-            if result in ("failed", "partiallySucceeded"):
-                if last_failure_time is None:
-                    last_failure_time = parse_dt(b["finishTime"])
-            elif result == "succeeded" and last_failure_time is not None:
+            is_failure = b["result"] in ("failed", "partiallySucceeded")
+            is_recovery = b["result"] == "succeeded" and last_failure_time is not None
+            if is_failure and last_failure_time is None:
+                last_failure_time = parse_dt(b["finishTime"])
+                continue
+            if is_recovery:
                 recovery_time = parse_dt(b["finishTime"])
                 recovery = (recovery_time - last_failure_time).total_seconds()
                 if recovery >= 0:
@@ -281,10 +279,9 @@ def compute_mttr_by_month(builds: list[dict]) -> dict[str, dict]:
         result[mk] = {"avg_hours": avg / 3600, "incidents": len(times)}
         all_recoveries.extend(times)
 
+    result["_overall"] = {"avg_hours": None, "incidents": 0}
     if all_recoveries:
         result["_overall"] = {"avg_hours": sum(all_recoveries) / len(all_recoveries) / 3600, "incidents": len(all_recoveries)}
-    else:
-        result["_overall"] = {"avg_hours": None, "incidents": 0}
     return result
 
 
@@ -369,10 +366,8 @@ def print_results(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str]):
     row = f"  {'Deploy Freq (days/dep)':<{label_w}}"
     for mk in months:
         df_m = df["monthly"].get(mk)
-        if df_m and df_m["days_per_dep"] is not None:
-            val = f"{df_m['days_per_dep']:.1f}"
-        else:
-            val = "N/A"
+        dpd = df_m["days_per_dep"] if df_m else None
+        val = f"{dpd:.1f}" if dpd is not None else "N/A"
         row += f"{val:>{col_w}}"
     ov = f"{df['overall_days_per_dep']:.1f}" if df["overall_days_per_dep"] is not None else "N/A"
     row += f"{ov}".rjust(col_w)
@@ -413,10 +408,8 @@ def print_results(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str]):
     row = f"  {'Change Failure Rate':<{label_w}}"
     for mk in months:
         cfr_m = cfr.get(mk)
-        if cfr_m and cfr_m["rate_pct"] is not None:
-            val = f"{cfr_m['rate_pct']:.1f}%"
-        else:
-            val = "N/A"
+        rate = cfr_m["rate_pct"] if cfr_m else None
+        val = f"{rate:.1f}%" if rate is not None else "N/A"
         row += f"{val:>{col_w}}"
     cfr_ov = f"{cfr_overall['rate_pct']:.1f}%" if cfr_overall.get("rate_pct") is not None else "N/A"
     row += f"{cfr_ov}".rjust(col_w)
@@ -425,11 +418,8 @@ def print_results(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str]):
     # Row 6: CFR detail
     row = f"  {'  (failed / total)':<{label_w}}"
     for mk in months:
-        cfr_m = cfr.get(mk)
-        if cfr_m:
-            val = f"{cfr_m['failed']}/{cfr_m['total']}"
-        else:
-            val = "0/0"
+        cfr_m = cfr.get(mk, {"failed": 0, "total": 0})
+        val = f"{cfr_m['failed']}/{cfr_m['total']}"
         row += f"{val:>{col_w}}"
     row += f"{cfr_overall.get('failed', 0)}/{cfr_overall.get('total', 0)}".rjust(col_w)
     print(row)
@@ -473,15 +463,13 @@ def print_results(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str]):
             cat = classify_dora(metric_key, val)
             row += f"{cat:>{col_w}}"
         # Overall
-        if metric_key == "deploy_freq":
-            ov = df["overall_days_per_dep"]
-        elif metric_key == "lead_time":
-            ov = lt_overall.get("avg_hours")
-        elif metric_key == "cfr":
-            ov = cfr_overall.get("rate_pct")
-        else:
-            ov = mttr_overall.get("avg_hours")
-        row += f"{classify_dora(metric_key, ov)}".rjust(col_w)
+        overall_values = {
+            "deploy_freq": df["overall_days_per_dep"],
+            "lead_time": lt_overall.get("avg_hours"),
+            "cfr": cfr_overall.get("rate_pct"),
+            "mttr": mttr_overall.get("avg_hours"),
+        }
+        row += f"{classify_dora(metric_key, overall_values[metric_key])}".rjust(col_w)
         print(row)
 
     print(f"\n{'=' * w}")
@@ -533,10 +521,7 @@ async def main():
         print(f"\nFound {len(pipelines)} pipeline(s):")
         choice = prompt_choice([p["name"] for p in pipelines], "a pipeline (0 for all)", allow_all=True)
 
-        if choice is None:
-            selected_pipelines = pipelines
-        else:
-            selected_pipelines = [pipelines[choice]]
+        selected_pipelines = pipelines if choice is None else [pipelines[choice]]
 
         print(f"\nSelected: {', '.join(p['name'] for p in selected_pipelines)}")
 
