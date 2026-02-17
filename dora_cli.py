@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Standalone CLI tool that computes DORA metrics from Azure DevOps pipeline data."""
 
+import argparse
 import asyncio
 import base64
 import calendar
@@ -482,7 +483,15 @@ def print_results(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str], 
     print("=" * w)
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="DORA Metrics CLI — Azure DevOps")
+    parser.add_argument("-org", dest="org", help="Azure DevOps organization (name or URL)")
+    return parser.parse_args()
+
+
 async def main():
+    args = parse_args()
+
     print("=" * 50)
     print("  DORA Metrics CLI — Azure DevOps")
     print("=" * 50)
@@ -490,7 +499,9 @@ async def main():
     pat = read_pat()
     print("\nPAT loaded from env.tks")
 
-    org_input = input("\nEnter Azure DevOps organization (name or URL): ").strip()
+    org_input = args.org
+    if not org_input:
+        org_input = input("\nEnter Azure DevOps organization (name or URL): ").strip()
     if not org_input:
         print("No organization provided.")
         sys.exit(1)
