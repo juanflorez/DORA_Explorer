@@ -168,12 +168,13 @@ def compute_deployment_frequency(builds: list[dict]) -> dict:
         year, month = map(int, key.split("-"))
         days_in_month = calendar.monthrange(year, month)[1]
         count = len(months[key])
-        monthly[key] = {"count": count, "per_day": count / days_in_month}
+        days_per_dep = days_in_month / count if count else None
+        monthly[key] = {"count": count, "days_per_dep": days_per_dep}
 
     total_days = 180
     total_deploys = len(successful)
-    overall = total_deploys / total_days if total_days else 0
-    return {"monthly": monthly, "overall_per_day": overall, "total": total_deploys}
+    overall = total_days / total_deploys if total_deploys else None
+    return {"monthly": monthly, "overall_days_per_dep": overall, "total": total_deploys}
 
 
 async def compute_lead_times_by_month(
@@ -292,12 +293,12 @@ def classify_dora(metric: str, value: float | None) -> str:
     if value is None:
         return "N/A"
     if metric == "deploy_freq":
-        # deployments per day
-        if value >= 1:
+        # days per deployment (lower is better)
+        if value <= 1:
             return "Elite"
-        if value >= 1 / 7:
+        if value <= 7:
             return "High"
-        if value >= 1 / 30:
+        if value <= 30:
             return "Medium"
         return "Low"
     if metric == "lead_time":
@@ -364,13 +365,17 @@ def print_results(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str]):
     cfr_overall = cfr.get("_overall", {})
     mttr_overall = mttr.get("_overall", {})
 
-    # Row 1: Deployment Frequency (deploys/day)
-    row = f"  {'Deploy Freq (dep/day)':<{label_w}}"
+    # Row 1: Deployment Frequency (days/deploy)
+    row = f"  {'Deploy Freq (days/dep)':<{label_w}}"
     for mk in months:
         df_m = df["monthly"].get(mk)
-        val = f"{df_m['per_day']:.2f}" if df_m else "0.00"
+        if df_m and df_m["days_per_dep"] is not None:
+            val = f"{df_m['days_per_dep']:.1f}"
+        else:
+            val = "N/A"
         row += f"{val:>{col_w}}"
-    row += f"{df['overall_per_day']:.2f}".rjust(col_w)
+    ov = f"{df['overall_days_per_dep']:.1f}" if df["overall_days_per_dep"] is not None else "N/A"
+    row += f"{ov}".rjust(col_w)
     print(row)
 
     # Row 2: Deploy count
@@ -457,7 +462,7 @@ def print_results(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str]):
     print(sep)
 
     for metric_key, metric_label, get_val in [
-        ("deploy_freq", "Deploy Frequency", lambda mk: (df["monthly"].get(mk, {}) or {}).get("per_day")),
+        ("deploy_freq", "Deploy Frequency", lambda mk: (df["monthly"].get(mk, {}) or {}).get("days_per_dep")),
         ("lead_time", "Lead Time", lambda mk: (lt.get(mk) or {}).get("avg_hours")),
         ("cfr", "Change Failure Rate", lambda mk: (cfr.get(mk) or {}).get("rate_pct")),
         ("mttr", "MTTR", lambda mk: (mttr.get(mk) or {}).get("avg_hours")),
@@ -469,7 +474,7 @@ def print_results(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str]):
             row += f"{cat:>{col_w}}"
         # Overall
         if metric_key == "deploy_freq":
-            ov = df["overall_per_day"]
+            ov = df["overall_days_per_dep"]
         elif metric_key == "lead_time":
             ov = lt_overall.get("avg_hours")
         elif metric_key == "cfr":
