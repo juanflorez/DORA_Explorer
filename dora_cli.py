@@ -486,6 +486,7 @@ def print_results(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str], 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="DORA Metrics CLI — Azure DevOps")
     parser.add_argument("-org", dest="org", help="Azure DevOps organization (name or URL)")
+    parser.add_argument("-project", dest="project", help="Project name, or 'all' for all projects")
     return parser.parse_args()
 
 
@@ -522,8 +523,19 @@ async def main():
             sys.exit(1)
 
         print(f"\nFound {len(projects)} project(s):")
-        proj_choice = prompt_choice([p["name"] for p in projects], "a project (0 for all)", allow_all=True)
-        selected_projects = projects if proj_choice is None else [projects[proj_choice]]
+        project_names = [p["name"] for p in projects]
+
+        if args.project and args.project.lower() == "all":
+            selected_projects = projects
+        if args.project and args.project.lower() != "all":
+            matching = [p for p in projects if p["name"].lower() == args.project.lower()]
+            if not matching:
+                print(f"Project '{args.project}' not found. Available: {', '.join(project_names)}")
+                sys.exit(1)
+            selected_projects = matching
+        if not args.project:
+            proj_choice = prompt_choice(project_names, "a project (0 for all)", allow_all=True)
+            selected_projects = projects if proj_choice is None else [projects[proj_choice]]
         print(f"\nSelected project(s): {', '.join(p['name'] for p in selected_projects)}")
 
         run_per_project = len(selected_projects) > 1
