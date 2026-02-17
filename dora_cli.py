@@ -178,7 +178,7 @@ def compute_deployment_frequency(builds: list[dict]) -> dict:
 
 
 async def compute_lead_times_by_month(
-    client: httpx.AsyncClient, org: str, project: str, builds: list[dict], pat: str
+    client: httpx.AsyncClient, org: str, builds: list[dict], pat: str
 ) -> dict[str, dict]:
     """Lead time per month. Returns {month: {avg_hours, sample_size}}."""
     successful = [
@@ -194,9 +194,10 @@ async def compute_lead_times_by_month(
         repo = b.get("repository", {})
         repo_id = repo.get("id")
         commit_id = b.get("sourceVersion")
-        if not repo_id or not commit_id:
+        build_project = b.get("project", {}).get("name", "")
+        if not repo_id or not commit_id or not build_project:
             continue
-        commit = await fetch_commit(client, org, project, repo_id, commit_id, pat)
+        commit = await fetch_commit(client, org, build_project, repo_id, commit_id, pat)
         if not commit:
             continue
         author_date = parse_dt(commit.get("author", {}).get("date"))
@@ -338,15 +339,19 @@ def format_hours(h: float | None) -> str:
     return f"{h / 24:.1f} days"
 
 
-def print_results(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str]):
+def print_results(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str], title: str = ""):
     col_w = 14
     label_w = 28
     cols = months + ["OVERALL"]
     w = label_w + col_w * len(cols) + 2
     sep = "─" * w
 
+    header = title if title else "DORA METRICS REPORT"
+    report_date = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+
     print("\n" + "=" * w)
-    print("  DORA METRICS REPORT — MONTH BY MONTH")
+    print(f"  {header}")
+    print(f"  Generated: {report_date}")
     print("=" * w)
 
     # Header row
@@ -506,50 +511,71 @@ async def main():
             sys.exit(1)
 
         print(f"\nFound {len(projects)} project(s):")
-        idx = prompt_choice([p["name"] for p in projects], "a project")
-        project = projects[idx]
-        project_name = project["name"]
-        print(f"\nSelected project: {project_name}")
+        proj_choice = prompt_choice([p["name"] for p in projects], "a project (0 for all)", allow_all=True)
+        selected_projects = projects if proj_choice is None else [projects[proj_choice]]
+        print(f"\nSelected project(s): {', '.join(p['name'] for p in selected_projects)}")
 
-        # Fetch pipelines
-        print("\nFetching pipelines...")
-        pipelines = await fetch_pipelines(client, org, project_name, pat)
-        if not pipelines:
-            print("No pipelines found in this project.")
-            sys.exit(1)
+        run_per_project = len(selected_projects) > 1
 
-        print(f"\nFound {len(pipelines)} pipeline(s):")
-        choice = prompt_choice([p["name"] for p in pipelines], "a pipeline (0 for all)", allow_all=True)
+        # Collect builds per project
+        project_builds: dict[str, list[dict]] = {}
+        for proj in selected_projects:
+            pname = proj["name"]
+            print(f"\nFetching pipelines for '{pname}'...")
+            pipelines = await fetch_pipelines(client, org, pname, pat)
+            if not pipelines:
+                print(f"  No pipelines found in '{pname}', skipping.")
+                continue
 
-        selected_pipelines = pipelines if choice is None else [pipelines[choice]]
+            # Only prompt for pipeline selection when a single project is selected
+            if not run_per_project:
+                print(f"\nFound {len(pipelines)} pipeline(s):")
+                choice = prompt_choice([p["name"] for p in pipelines], "a pipeline (0 for all)", allow_all=True)
+                selected_pipelines = pipelines if choice is None else [pipelines[choice]]
+                print(f"\nSelected: {', '.join(p['name'] for p in selected_pipelines)}")
+            if run_per_project:
+                selected_pipelines = pipelines
+                print(f"  Found {len(pipelines)} pipeline(s), fetching all...")
 
-        print(f"\nSelected: {', '.join(p['name'] for p in selected_pipelines)}")
+            proj_builds: list[dict] = []
+            for p in selected_pipelines:
+                print(f"  Fetching builds for '{pname}/{p['name']}'...")
+                builds = await fetch_builds(client, org, pname, p["id"], pat)
+                print(f"    → {len(builds)} builds")
+                proj_builds.extend(builds)
+            if proj_builds:
+                project_builds[pname] = proj_builds
 
-        # Fetch builds for each selected pipeline
-        all_builds: list[dict] = []
-        for p in selected_pipelines:
-            print(f"  Fetching builds for '{p['name']}'...")
-            builds = await fetch_builds(client, org, project_name, p["id"], pat)
-            print(f"    → {len(builds)} builds")
-            all_builds.extend(builds)
-
-        if not all_builds:
+        if not project_builds:
             print("\nNo builds found in the past 6 months.")
             sys.exit(1)
 
-        print(f"\nTotal builds: {len(all_builds)}")
+        # When running per project, compute and print metrics for each project separately
+        if run_per_project:
+            for pname, builds in project_builds.items():
+                print(f"\n{'#' * 40}")
+                print(f"  Computing metrics for '{pname}' ({len(builds)} builds)...")
+                months = all_months_in_range(builds)
+                df = compute_deployment_frequency(builds)
+                cfr = compute_change_failure_rate_by_month(builds)
+                mttr_result = compute_mttr_by_month(builds)
+                print(f"  Fetching commit data for lead time...")
+                lt = await compute_lead_times_by_month(client, org, builds, pat)
+                print_results(df, lt, cfr, mttr_result, months, title=f"DORA METRICS — {pname}")
 
-        # Compute metrics
-        print("\nComputing metrics...")
-        months = all_months_in_range(all_builds)
-        df = compute_deployment_frequency(all_builds)
-        cfr = compute_change_failure_rate_by_month(all_builds)
-        mttr_result = compute_mttr_by_month(all_builds)
-
-        print("Fetching commit data for lead time (this may take a moment)...")
-        lt = await compute_lead_times_by_month(client, org, project_name, all_builds, pat)
-
-        print_results(df, lt, cfr, mttr_result, months)
+        # Single project mode
+        if not run_per_project:
+            all_builds = list(project_builds.values())[0]
+            pname = list(project_builds.keys())[0]
+            print(f"\nTotal builds: {len(all_builds)}")
+            print("\nComputing metrics...")
+            months = all_months_in_range(all_builds)
+            df = compute_deployment_frequency(all_builds)
+            cfr = compute_change_failure_rate_by_month(all_builds)
+            mttr_result = compute_mttr_by_month(all_builds)
+            print("Fetching commit data for lead time (this may take a moment)...")
+            lt = await compute_lead_times_by_month(client, org, all_builds, pat)
+            print_results(df, lt, cfr, mttr_result, months, title=f"DORA METRICS — {pname}")
 
 
 if __name__ == "__main__":
