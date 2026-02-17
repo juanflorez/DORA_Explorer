@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone CLI tool that computes DORA metrics from Azure DevOps pipeline data."""
+"""Standalone CLI tool that computes DORA metrics from Azure DevOps pipeline/PR data."""
 
 import argparse
 import asyncio
@@ -118,6 +118,58 @@ async def fetch_commit(client: httpx.AsyncClient, org: str, project: str, repo_i
         return None
 
 
+async def fetch_repos(client: httpx.AsyncClient, org: str, project: str, pat: str) -> list[dict]:
+    data = await api_get(client, f"{BASE_URL}/{org}/{project}/_apis/git/repositories", pat)
+    return sorted(data["value"], key=lambda r: r["name"].lower())
+
+
+async def fetch_pull_requests(
+    client: httpx.AsyncClient, org: str, project: str, repo_id: str, pat: str, status: str = "completed"
+) -> list[dict]:
+    six_months_ago = datetime.now(UTC) - timedelta(days=180)
+    data = await api_get(
+        client,
+        f"{BASE_URL}/{org}/{project}/_apis/git/repositories/{repo_id}/pullrequests",
+        pat,
+        params={
+            "searchCriteria.status": status,
+            "searchCriteria.minTime": six_months_ago.isoformat(),
+            "searchCriteria.queryTimeRangeType": "closed",
+            "$top": 500,
+        },
+    )
+    return data["value"]
+
+
+async def fetch_pr_commits(
+    client: httpx.AsyncClient, org: str, project: str, repo_id: str, pr_id: int, pat: str
+) -> list[dict]:
+    url = f"{BASE_URL}/{org}/{project}/_apis/git/repositories/{repo_id}/pullRequests/{pr_id}/commits"
+    try:
+        data = await api_get(client, url, pat)
+        return data["value"]
+    except httpx.HTTPStatusError:
+        return []
+
+
+async def fetch_all_builds_for_project(
+    client: httpx.AsyncClient, org: str, project: str, pat: str
+) -> list[dict]:
+    """Fetch all builds for a project (past 6 months), not filtered by pipeline."""
+    six_months_ago = datetime.now(UTC) - timedelta(days=180)
+    data = await api_get(
+        client,
+        f"{BASE_URL}/{org}/{project}/_apis/build/builds",
+        pat,
+        params={
+            "minTime": six_months_ago.isoformat(),
+            "queryOrder": "finishTimeDescending",
+            "$top": 500,
+        },
+    )
+    return data["value"]
+
+
 # ---------------------------------------------------------------------------
 # Helpers: group builds by month
 # ---------------------------------------------------------------------------
@@ -138,7 +190,7 @@ def builds_by_month(builds: list[dict]) -> dict[str, list[dict]]:
     return dict(sorted(groups.items()))
 
 
-def all_months_in_range(builds: list[dict]) -> list[str]:
+def all_months_in_range(items: list[dict]) -> list[str]:
     """Return sorted list of YYYY-MM keys covering the full 6-month window."""
     now = datetime.now(UTC)
     months = []
@@ -284,6 +336,77 @@ def compute_mttr_by_month(builds: list[dict]) -> dict[str, dict]:
     result["_overall"] = {"avg_hours": None, "incidents": 0}
     if all_recoveries:
         result["_overall"] = {"avg_hours": sum(all_recoveries) / len(all_recoveries) / 3600, "incidents": len(all_recoveries)}
+    return result
+
+
+# ---------------------------------------------------------------------------
+# PR-mode DORA metric computation
+# ---------------------------------------------------------------------------
+
+def compute_pr_deployment_frequency(prs: list[dict]) -> dict:
+    """Merged PRs per month, measured as days between approvals."""
+    merged = [pr for pr in prs if pr.get("status") == "completed" and pr.get("closedDate")]
+    months: dict[str, list[datetime]] = {}
+    for pr in merged:
+        dt = parse_dt(pr["closedDate"])
+        key = dt.strftime("%Y-%m")
+        months.setdefault(key, []).append(dt)
+
+    monthly = {}
+    for key in sorted(months):
+        year, month = map(int, key.split("-"))
+        days_in_month = calendar.monthrange(year, month)[1]
+        count = len(months[key])
+        days_per_dep = days_in_month / count if count else None
+        monthly[key] = {"count": count, "days_per_dep": days_per_dep}
+
+    total_days = 180
+    total_merged = len(merged)
+    overall = total_days / total_merged if total_merged else None
+    return {"monthly": monthly, "overall_days_per_dep": overall, "total": total_merged}
+
+
+async def compute_pr_lead_times_by_month(
+    client: httpx.AsyncClient, org: str, project: str, prs: list[dict], pat: str
+) -> dict[str, dict]:
+    """Lead time = closedDate - earliest commit date in the PR."""
+    merged = [pr for pr in prs if pr.get("status") == "completed" and pr.get("closedDate")]
+    sample = merged[:200]
+    lead_times_by_month: dict[str, list[float]] = {}
+
+    for pr in sample:
+        repo_id = pr.get("repository", {}).get("id")
+        pr_id = pr.get("pullRequestId")
+        if not repo_id or not pr_id:
+            continue
+        commits = await fetch_pr_commits(client, org, project, repo_id, pr_id, pat)
+        if not commits:
+            continue
+        # Find earliest commit author date
+        commit_dates = [parse_dt(c.get("author", {}).get("date")) for c in commits]
+        commit_dates = [d for d in commit_dates if d is not None]
+        if not commit_dates:
+            continue
+        earliest_commit = min(commit_dates)
+        closed_date = parse_dt(pr["closedDate"])
+        if not closed_date:
+            continue
+        delta = (closed_date - earliest_commit).total_seconds()
+        if delta >= 0:
+            mk = closed_date.strftime("%Y-%m")
+            lead_times_by_month.setdefault(mk, []).append(delta)
+
+    result: dict[str, dict] = {}
+    all_times: list[float] = []
+    for mk in sorted(lead_times_by_month):
+        times = lead_times_by_month[mk]
+        avg = sum(times) / len(times)
+        result[mk] = {"avg_hours": avg / 3600, "sample_size": len(times)}
+        all_times.extend(times)
+
+    result["_overall"] = {"avg_hours": None, "sample_size": 0}
+    if all_times:
+        result["_overall"] = {"avg_hours": sum(all_times) / len(all_times) / 3600, "sample_size": len(all_times)}
     return result
 
 
@@ -487,6 +610,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="DORA Metrics CLI — Azure DevOps")
     parser.add_argument("-org", dest="org", help="Azure DevOps organization (name or URL)")
     parser.add_argument("-project", dest="project", help="Project name, or 'all' for all projects")
+    parser.add_argument("-mode", dest="mode", choices=["pipelines", "pullrequests"], help="Measure using pipelines or pull requests")
     return parser.parse_args()
 
 
@@ -538,67 +662,119 @@ async def main():
             selected_projects = projects if proj_choice is None else [projects[proj_choice]]
         print(f"\nSelected project(s): {', '.join(p['name'] for p in selected_projects)}")
 
+        # Mode selection
+        mode = args.mode
+        if not mode:
+            print("\nMeasure DORA metrics using:")
+            mode_choice = prompt_choice(["Pipelines", "Pull Requests"], "a mode")
+            mode = "pipelines" if mode_choice == 0 else "pullrequests"
+        print(f"Mode: {mode}")
+
         run_per_project = len(selected_projects) > 1
 
-        # Collect builds per project
-        project_builds: dict[str, list[dict]] = {}
-        for proj in selected_projects:
-            pname = proj["name"]
-            print(f"\nFetching pipelines for '{pname}'...")
-            pipelines = await fetch_pipelines(client, org, pname, pat)
-            if not pipelines:
-                print(f"  No pipelines found in '{pname}', skipping.")
-                continue
+        # ── Pipeline mode ──
+        if mode == "pipelines":
+            project_builds: dict[str, list[dict]] = {}
+            for proj in selected_projects:
+                pname = proj["name"]
+                print(f"\nFetching pipelines for '{pname}'...")
+                pipelines = await fetch_pipelines(client, org, pname, pat)
+                if not pipelines:
+                    print(f"  No pipelines found in '{pname}', skipping.")
+                    continue
 
-            # Only prompt for pipeline selection when a single project is selected
-            if not run_per_project:
-                print(f"\nFound {len(pipelines)} pipeline(s):")
-                choice = prompt_choice([p["name"] for p in pipelines], "a pipeline (0 for all)", allow_all=True)
-                selected_pipelines = pipelines if choice is None else [pipelines[choice]]
-                print(f"\nSelected: {', '.join(p['name'] for p in selected_pipelines)}")
+                if not run_per_project:
+                    print(f"\nFound {len(pipelines)} pipeline(s):")
+                    choice = prompt_choice([p["name"] for p in pipelines], "a pipeline (0 for all)", allow_all=True)
+                    selected_pipelines = pipelines if choice is None else [pipelines[choice]]
+                    print(f"\nSelected: {', '.join(p['name'] for p in selected_pipelines)}")
+                if run_per_project:
+                    selected_pipelines = pipelines
+                    print(f"  Found {len(pipelines)} pipeline(s), fetching all...")
+
+                proj_builds: list[dict] = []
+                for p in selected_pipelines:
+                    print(f"  Fetching builds for '{pname}/{p['name']}'...")
+                    builds = await fetch_builds(client, org, pname, p["id"], pat)
+                    print(f"    → {len(builds)} builds")
+                    proj_builds.extend(builds)
+                if proj_builds:
+                    project_builds[pname] = proj_builds
+
+            if not project_builds:
+                print("\nNo builds found in the past 6 months.")
+                sys.exit(1)
+
             if run_per_project:
-                selected_pipelines = pipelines
-                print(f"  Found {len(pipelines)} pipeline(s), fetching all...")
+                for pname, builds in project_builds.items():
+                    print(f"\n{'#' * 40}")
+                    print(f"  Computing metrics for '{pname}' ({len(builds)} builds)...")
+                    months = all_months_in_range(builds)
+                    df = compute_deployment_frequency(builds)
+                    cfr = compute_change_failure_rate_by_month(builds)
+                    mttr_result = compute_mttr_by_month(builds)
+                    print(f"  Fetching commit data for lead time...")
+                    lt = await compute_lead_times_by_month(client, org, builds, pat)
+                    print_results(df, lt, cfr, mttr_result, months, title=f"DORA METRICS — {pname} [Pipelines]")
 
-            proj_builds: list[dict] = []
-            for p in selected_pipelines:
-                print(f"  Fetching builds for '{pname}/{p['name']}'...")
-                builds = await fetch_builds(client, org, pname, p["id"], pat)
-                print(f"    → {len(builds)} builds")
-                proj_builds.extend(builds)
-            if proj_builds:
-                project_builds[pname] = proj_builds
+            if not run_per_project:
+                all_builds = list(project_builds.values())[0]
+                pname = list(project_builds.keys())[0]
+                print(f"\nTotal builds: {len(all_builds)}")
+                print("\nComputing metrics...")
+                months = all_months_in_range(all_builds)
+                df = compute_deployment_frequency(all_builds)
+                cfr = compute_change_failure_rate_by_month(all_builds)
+                mttr_result = compute_mttr_by_month(all_builds)
+                print("Fetching commit data for lead time (this may take a moment)...")
+                lt = await compute_lead_times_by_month(client, org, all_builds, pat)
+                print_results(df, lt, cfr, mttr_result, months, title=f"DORA METRICS — {pname} [Pipelines]")
 
-        if not project_builds:
-            print("\nNo builds found in the past 6 months.")
-            sys.exit(1)
+        # ── Pull Request mode ──
+        if mode == "pullrequests":
+            for proj in selected_projects:
+                pname = proj["name"]
+                print(f"\nFetching repos for '{pname}'...")
+                repos = await fetch_repos(client, org, pname, pat)
+                if not repos:
+                    print(f"  No repos found in '{pname}', skipping.")
+                    continue
 
-        # When running per project, compute and print metrics for each project separately
-        if run_per_project:
-            for pname, builds in project_builds.items():
-                print(f"\n{'#' * 40}")
-                print(f"  Computing metrics for '{pname}' ({len(builds)} builds)...")
-                months = all_months_in_range(builds)
-                df = compute_deployment_frequency(builds)
-                cfr = compute_change_failure_rate_by_month(builds)
-                mttr_result = compute_mttr_by_month(builds)
-                print(f"  Fetching commit data for lead time...")
-                lt = await compute_lead_times_by_month(client, org, builds, pat)
-                print_results(df, lt, cfr, mttr_result, months, title=f"DORA METRICS — {pname}")
+                # Fetch PRs from all repos
+                all_prs: list[dict] = []
+                for repo in repos:
+                    print(f"  Fetching PRs for repo '{repo['name']}'...")
+                    completed = await fetch_pull_requests(client, org, pname, repo["id"], pat, status="completed")
+                    abandoned = await fetch_pull_requests(client, org, pname, repo["id"], pat, status="abandoned")
+                    repo_prs = completed + abandoned
+                    if repo_prs:
+                        print(f"    → {len(completed)} merged, {len(abandoned)} abandoned")
+                    all_prs.extend(repo_prs)
 
-        # Single project mode
-        if not run_per_project:
-            all_builds = list(project_builds.values())[0]
-            pname = list(project_builds.keys())[0]
-            print(f"\nTotal builds: {len(all_builds)}")
-            print("\nComputing metrics...")
-            months = all_months_in_range(all_builds)
-            df = compute_deployment_frequency(all_builds)
-            cfr = compute_change_failure_rate_by_month(all_builds)
-            mttr_result = compute_mttr_by_month(all_builds)
-            print("Fetching commit data for lead time (this may take a moment)...")
-            lt = await compute_lead_times_by_month(client, org, all_builds, pat)
-            print_results(df, lt, cfr, mttr_result, months, title=f"DORA METRICS — {pname}")
+                if not all_prs:
+                    print(f"  No PRs found in '{pname}' in the past 6 months, skipping.")
+                    continue
+
+                merged_count = len([pr for pr in all_prs if pr.get("status") == "completed"])
+                abandoned_count = len([pr for pr in all_prs if pr.get("status") == "abandoned"])
+                print(f"\n  Total PRs for '{pname}': {len(all_prs)} ({merged_count} merged, {abandoned_count} abandoned)")
+
+                # Fetch builds for CFR/MTTR
+                print(f"  Fetching builds for CFR/MTTR...")
+                all_builds = await fetch_all_builds_for_project(client, org, pname, pat)
+                print(f"    → {len(all_builds)} builds")
+
+                # Compute PR-mode metrics
+                print(f"  Computing metrics...")
+                months = all_months_in_range(all_prs)
+                df = compute_pr_deployment_frequency(all_prs)
+                cfr = compute_change_failure_rate_by_month(all_builds)
+                mttr_result = compute_mttr_by_month(all_builds)
+
+                print(f"  Fetching commit data for lead time (this may take a moment)...")
+                lt = await compute_pr_lead_times_by_month(client, org, pname, all_prs, pat)
+
+                print_results(df, lt, cfr, mttr_result, months, title=f"DORA METRICS — {pname} [Pull Requests]")
 
 
 if __name__ == "__main__":
