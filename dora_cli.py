@@ -252,12 +252,14 @@ def export_excel(
 
     wb = openpyxl.load_workbook(template)
 
-    # --- Helper: parse date string to date-only ---
+    # --- Helper: parse date string to datetime (midnight, no tz) for Excel ---
     def to_date(s: str | None):
         if not s:
             return None
         dt = parse_dt(s)
-        return dt.date() if dt else None
+        if dt is None:
+            return None
+        return datetime(dt.year, dt.month, dt.day)
 
     # ── 1. Build Deployments rows ──
     if mode == "pipelines":
@@ -301,24 +303,30 @@ def export_excel(
                 "commit_id": sid,
                 "date_commit": to_date(rec.get("commit_date")),
                 "deployment_id": source_id_to_dep_id.get(sid, 0),
-                "days_to_release": round(rec.get("lead_time_hours", 0) / 24),
             })
-    commit_rows.sort(key=lambda r: r["date_commit"] or datetime.min.date())
+    commit_rows.sort(key=lambda r: r["date_commit"] or datetime.min)
 
     # ── 3. Build Issues rows ──
+    # Build a reverse lookup: date → list of DeploymentIDs for FK matching
+    date_to_dep_ids: dict[datetime, list[int]] = {}
+    for row in dep_rows:
+        if row["date"]:
+            date_to_dep_ids.setdefault(row["date"], []).append(row["dep_id"])
+
     mttr_details = mttr.get("_details", {})
     issue_rows = []
     for mk in sorted(mttr_details.keys()):
         for rec in mttr_details[mk]:
-            # Try to find the recovery build in Deployments by matching recovery_date
             recovery_date = to_date(rec.get("recovery_date"))
-            # No direct source_id for MTTR recovery, so FK stays 0
+            # Match recovery date to a DeploymentID
+            fixed_release_id = 0
+            if recovery_date and recovery_date in date_to_dep_ids:
+                fixed_release_id = date_to_dep_ids[recovery_date][0]
             issue_rows.append({
                 "report_date": to_date(rec.get("failure_date")),
-                "release_date": recovery_date,
-                "days_to_release": round(rec.get("duration_hours", 0) / 24),
+                "fixed_release_id": fixed_release_id,
             })
-    issue_rows.sort(key=lambda r: r["report_date"] or datetime.min.date())
+    issue_rows.sort(key=lambda r: r["report_date"] or datetime.min)
 
     # ── 4. Write Deployments tab ──
     ws_dep = wb["Deployments"]
@@ -329,8 +337,12 @@ def export_excel(
 
     for i, row in enumerate(dep_rows, 2):
         ws_dep.cell(row=i, column=1).value = row["dep_id"]
-        ws_dep.cell(row=i, column=2).value = row["date"]
-        ws_dep.cell(row=i, column=3).value = row["date"]
+        c_acc = ws_dep.cell(row=i, column=2)
+        c_acc.value = row["date"]
+        c_acc.number_format = r'dd\.mm\.yy;@'
+        c_prod = ws_dep.cell(row=i, column=3)
+        c_prod.value = row["date"]
+        c_prod.number_format = 'd/m/yy;@'
         ws_dep.cell(row=i, column=4).value = row["failed"]
 
     # Resize table
@@ -344,11 +356,16 @@ def export_excel(
         for col_idx in range(1, 5):
             ws_com.cell(row=row_idx, column=col_idx).value = None
 
+    COMMIT_LT_FORMULA = '=_xlfn.XLOOKUP(Commits[[#This Row],[DeploymentID]],Deployments[DeploymentID],Deployments[Prod])-Commits[[#This Row],[DateCommit]]'
     for i, row in enumerate(commit_rows, 2):
         ws_com.cell(row=i, column=1).value = row["commit_id"]
-        ws_com.cell(row=i, column=2).value = row["date_commit"]
+        c_date = ws_com.cell(row=i, column=2)
+        c_date.value = row["date_commit"]
+        c_date.number_format = 'dd/mm/yy;@'
         ws_com.cell(row=i, column=3).value = row["deployment_id"]
-        ws_com.cell(row=i, column=4).value = row["days_to_release"]
+        c_lt = ws_com.cell(row=i, column=4)
+        c_lt.value = COMMIT_LT_FORMULA
+        c_lt.number_format = '0'
 
     if commit_rows:
         last_row = 1 + len(commit_rows)
@@ -360,12 +377,20 @@ def export_excel(
         for col_idx in range(1, 6):
             ws_iss.cell(row=row_idx, column=col_idx).value = None
 
+    ISSUE_LT_FORMULA = '=_xlfn.XLOOKUP(Issues[[#This Row],[Fixed-ReleaseID]],Deployments[DeploymentID],Deployments[Prod])-Issues[[#This Row],[Report Date]]'
+    ISSUE_RD_FORMULA = '=_xlfn.XLOOKUP(Issues[[#This Row],[Fixed-ReleaseID]],Deployments[DeploymentID],Deployments[Prod])'
     for i, row in enumerate(issue_rows, 2):
         ws_iss.cell(row=i, column=1).value = i - 1  # sequential Issue ID
-        ws_iss.cell(row=i, column=2).value = row["report_date"]
-        ws_iss.cell(row=i, column=3).value = 0  # Fixed-ReleaseID (no direct FK available)
-        ws_iss.cell(row=i, column=4).value = row["days_to_release"]
-        ws_iss.cell(row=i, column=5).value = row["release_date"]
+        c_report = ws_iss.cell(row=i, column=2)
+        c_report.value = row["report_date"]
+        c_report.number_format = r'dd\.mm\.yy;@'
+        ws_iss.cell(row=i, column=3).value = row["fixed_release_id"]
+        c_dtr = ws_iss.cell(row=i, column=4)
+        c_dtr.value = ISSUE_LT_FORMULA
+        c_dtr.number_format = '0.00'
+        c_rd = ws_iss.cell(row=i, column=5)
+        c_rd.value = ISSUE_RD_FORMULA
+        c_rd.number_format = 'd/mm/yyyy;@'
 
     if issue_rows:
         last_row = 1 + len(issue_rows)
