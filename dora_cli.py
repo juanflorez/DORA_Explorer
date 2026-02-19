@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
+import openpyxl
 
 from azure_api import (
     fetch_all_builds_for_project,
@@ -237,6 +238,160 @@ def export_json(
     return str(filepath)
 
 
+def export_excel(
+    org: str, project: str, mode: str, months: list[str],
+    df: dict, lt: dict, cfr: dict, mttr: dict,
+) -> str:
+    """Export metrics to an Excel copy of DORA_DB.xlsx. Returns the filepath."""
+    from azure_api import parse_dt
+
+    template = Path(__file__).resolve().parent / "DORA_DB.xlsx"
+    if not template.exists():
+        print("  (DORA_DB.xlsx template not found, skipping Excel export)")
+        return ""
+
+    wb = openpyxl.load_workbook(template)
+
+    # --- Helper: parse date string to date-only ---
+    def to_date(s: str | None):
+        if not s:
+            return None
+        dt = parse_dt(s)
+        return dt.date() if dt else None
+
+    # ── 1. Build Deployments rows ──
+    if mode == "pipelines":
+        # Source: CFR details (all completed builds)
+        dep_source = cfr.get("_details", {})
+    else:
+        # Source: DF details (merged PRs)
+        dep_source = df.get("_details", {})
+
+    dep_rows = []
+    for mk in sorted(dep_source.keys()):
+        for rec in dep_source[mk]:
+            date_str = rec.get("date", "")
+            if mode == "pipelines":
+                failed = 1 if rec.get("result", "") in ("failed", "partiallySucceeded") else 0
+                source_id = rec.get("build_id")
+            else:
+                failed = 0
+                source_id = rec.get("pr_id")
+            dep_rows.append({
+                "date": to_date(date_str),
+                "failed": failed,
+                "source_id": source_id,
+            })
+    dep_rows.sort(key=lambda r: r["date"] or datetime.min.date())
+
+    # Assign sequential DeploymentIDs and build lookup map
+    source_id_to_dep_id: dict[int | str, int] = {}
+    for i, row in enumerate(dep_rows, 1):
+        row["dep_id"] = i
+        if row["source_id"] is not None:
+            source_id_to_dep_id[row["source_id"]] = i
+
+    # ── 2. Build Commits rows ──
+    lt_details = lt.get("_details", {})
+    commit_rows = []
+    for mk in sorted(lt_details.keys()):
+        for rec in lt_details[mk]:
+            sid = rec.get("build_id") or rec.get("pr_id")
+            commit_rows.append({
+                "commit_id": sid,
+                "date_commit": to_date(rec.get("commit_date")),
+                "deployment_id": source_id_to_dep_id.get(sid, 0),
+                "days_to_release": round(rec.get("lead_time_hours", 0) / 24),
+            })
+    commit_rows.sort(key=lambda r: r["date_commit"] or datetime.min.date())
+
+    # ── 3. Build Issues rows ──
+    mttr_details = mttr.get("_details", {})
+    issue_rows = []
+    for mk in sorted(mttr_details.keys()):
+        for rec in mttr_details[mk]:
+            # Try to find the recovery build in Deployments by matching recovery_date
+            recovery_date = to_date(rec.get("recovery_date"))
+            # No direct source_id for MTTR recovery, so FK stays 0
+            issue_rows.append({
+                "report_date": to_date(rec.get("failure_date")),
+                "release_date": recovery_date,
+                "days_to_release": round(rec.get("duration_hours", 0) / 24),
+            })
+    issue_rows.sort(key=lambda r: r["report_date"] or datetime.min.date())
+
+    # ── 4. Write Deployments tab ──
+    ws_dep = wb["Deployments"]
+    # Clear old data rows (keep header row 1)
+    for row_idx in range(2, ws_dep.max_row + 1):
+        for col_idx in range(1, 5):
+            ws_dep.cell(row=row_idx, column=col_idx).value = None
+
+    for i, row in enumerate(dep_rows, 2):
+        ws_dep.cell(row=i, column=1).value = row["dep_id"]
+        ws_dep.cell(row=i, column=2).value = row["date"]
+        ws_dep.cell(row=i, column=3).value = row["date"]
+        ws_dep.cell(row=i, column=4).value = row["failed"]
+
+    # Resize table
+    if dep_rows:
+        last_row = 1 + len(dep_rows)
+        ws_dep.tables["Deployments"].ref = f"A1:D{last_row}"
+
+    # ── 5. Write Commits tab ──
+    ws_com = wb["Commits"]
+    for row_idx in range(2, ws_com.max_row + 1):
+        for col_idx in range(1, 5):
+            ws_com.cell(row=row_idx, column=col_idx).value = None
+
+    for i, row in enumerate(commit_rows, 2):
+        ws_com.cell(row=i, column=1).value = row["commit_id"]
+        ws_com.cell(row=i, column=2).value = row["date_commit"]
+        ws_com.cell(row=i, column=3).value = row["deployment_id"]
+        ws_com.cell(row=i, column=4).value = row["days_to_release"]
+
+    if commit_rows:
+        last_row = 1 + len(commit_rows)
+        ws_com.tables["Commits"].ref = f"A1:D{last_row}"
+
+    # ── 6. Write Issues tab ──
+    ws_iss = wb["Issues"]
+    for row_idx in range(2, ws_iss.max_row + 1):
+        for col_idx in range(1, 6):
+            ws_iss.cell(row=row_idx, column=col_idx).value = None
+
+    for i, row in enumerate(issue_rows, 2):
+        ws_iss.cell(row=i, column=1).value = i - 1  # sequential Issue ID
+        ws_iss.cell(row=i, column=2).value = row["report_date"]
+        ws_iss.cell(row=i, column=3).value = 0  # Fixed-ReleaseID (no direct FK available)
+        ws_iss.cell(row=i, column=4).value = row["days_to_release"]
+        ws_iss.cell(row=i, column=5).value = row["release_date"]
+
+    if issue_rows:
+        last_row = 1 + len(issue_rows)
+        ws_iss.tables["Issues"].ref = f"A1:E{last_row}"
+
+    # ── 7. Update DORA tab month-start dates ──
+    ws_dora = wb["DORA"]
+    # months list is like ["2025-08", "2025-09", ...] — write as 1st of each month
+    # DORA tab uses columns D–O (4–15) for up to 12 months
+    for col_idx in range(4, 16):
+        ws_dora.cell(row=1, column=col_idx).value = None
+    for j, mk in enumerate(months):
+        year, month = map(int, mk.split("-"))
+        ws_dora.cell(row=1, column=4 + j).value = datetime(year, month, 1)
+
+    # ── 8. Save ──
+    reports_dir = Path(__file__).resolve().parent / "reports"
+    reports_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_project = project.replace(" ", "_")
+    filepath = reports_dir / f"DORA_DB_{safe_project}_{mode}_{timestamp}.xlsx"
+    wb.save(filepath)
+    print(f"Excel report exported to: {filepath}")
+    return str(filepath)
+
+
 def print_detail_table(metric_abbr: str, label: str, month: str, records: list[dict]):
     """Print a formatted detail table for a single metric+month."""
     if not records:
@@ -427,6 +582,7 @@ async def main():
                     lt = await compute_lead_times_by_month(client, org, builds, pat)
                     print_results(df, lt, cfr, mttr_result, months, title=f"DORA METRICS — {pname} [Pipelines]")
                     export_json(org, pname, "pipelines", months, df, lt, cfr, mttr_result)
+                    export_excel(org, pname, "pipelines", months, df, lt, cfr, mttr_result)
                     drill_down(df, lt, cfr, mttr_result, months)
 
             if not run_per_project:
@@ -442,6 +598,7 @@ async def main():
                 lt = await compute_lead_times_by_month(client, org, all_builds, pat)
                 print_results(df, lt, cfr, mttr_result, months, title=f"DORA METRICS — {pname} [Pipelines]")
                 export_json(org, pname, "pipelines", months, df, lt, cfr, mttr_result)
+                export_excel(org, pname, "pipelines", months, df, lt, cfr, mttr_result)
                 drill_down(df, lt, cfr, mttr_result, months)
 
         # ── Pull Request mode ──
@@ -490,6 +647,7 @@ async def main():
 
                 print_results(df, lt, cfr, mttr_result, months, title=f"DORA METRICS — {pname} [Pull Requests]")
                 export_json(org, pname, "pullrequests", months, df, lt, cfr, mttr_result)
+                export_excel(org, pname, "pullrequests", months, df, lt, cfr, mttr_result)
                 drill_down(df, lt, cfr, mttr_result, months)
 
 
