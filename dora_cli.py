@@ -245,9 +245,9 @@ def export_excel(
     """Export metrics to an Excel copy of DORA_DB.xlsx. Returns the filepath."""
     from azure_api import parse_dt
 
-    template = Path(__file__).resolve().parent / "DORA_DB.xlsx"
+    template = Path(__file__).resolve().parent / "DORA_DB_v3.xlsx"
     if not template.exists():
-        print("  (DORA_DB.xlsx template not found, skipping Excel export)")
+        print("  (DORA_DB_v3.xlsx template not found, skipping Excel export)")
         return ""
 
     wb = openpyxl.load_workbook(template)
@@ -339,10 +339,10 @@ def export_excel(
         ws_dep.cell(row=i, column=1).value = row["dep_id"]
         c_acc = ws_dep.cell(row=i, column=2)
         c_acc.value = row["date"]
-        c_acc.number_format = r'dd\.mm\.yy;@'
+        c_acc.number_format = 'DD/MM/YYYY'
         c_prod = ws_dep.cell(row=i, column=3)
         c_prod.value = row["date"]
-        c_prod.number_format = 'd/m/yy;@'
+        c_prod.number_format = 'DD/MM/YYYY'
         ws_dep.cell(row=i, column=4).value = row["failed"]
 
     # Resize table
@@ -361,7 +361,7 @@ def export_excel(
         ws_com.cell(row=i, column=1).value = row["commit_id"]
         c_date = ws_com.cell(row=i, column=2)
         c_date.value = row["date_commit"]
-        c_date.number_format = 'dd/mm/yy;@'
+        c_date.number_format = 'DD/MM/YYYY'
         ws_com.cell(row=i, column=3).value = row["deployment_id"]
         c_lt = ws_com.cell(row=i, column=4)
         c_lt.value = COMMIT_LT_FORMULA
@@ -383,14 +383,14 @@ def export_excel(
         ws_iss.cell(row=i, column=1).value = i - 1  # sequential Issue ID
         c_report = ws_iss.cell(row=i, column=2)
         c_report.value = row["report_date"]
-        c_report.number_format = r'dd\.mm\.yy;@'
+        c_report.number_format = 'DD/MM/YYYY'
         ws_iss.cell(row=i, column=3).value = row["fixed_release_id"]
         c_dtr = ws_iss.cell(row=i, column=4)
         c_dtr.value = ISSUE_LT_FORMULA
         c_dtr.number_format = '0.00'
         c_rd = ws_iss.cell(row=i, column=5)
         c_rd.value = ISSUE_RD_FORMULA
-        c_rd.number_format = 'd/mm/yyyy;@'
+        c_rd.number_format = 'DD/MM/YYYY'
 
     if issue_rows:
         last_row = 1 + len(issue_rows)
@@ -399,12 +399,14 @@ def export_excel(
     # ── 7. Update DORA tab month-start dates ──
     ws_dora = wb["DORA"]
     # months list is like ["2025-08", "2025-09", ...] — write as 1st of each month
-    # DORA tab uses columns D–O (4–15) for up to 12 months
-    for col_idx in range(4, 16):
+    # DORA tab has month dates starting at column D; clear all existing ones
+    for col_idx in range(4, 33):
         ws_dora.cell(row=1, column=col_idx).value = None
     for j, mk in enumerate(months):
         year, month = map(int, mk.split("-"))
-        ws_dora.cell(row=1, column=4 + j).value = datetime(year, month, 1)
+        c = ws_dora.cell(row=1, column=4 + j)
+        c.value = datetime(year, month, 1)
+        c.number_format = 'DD/MM/YYYY'
 
     # ── 8. Save ──
     reports_dir = Path(__file__).resolve().parent / "reports"
