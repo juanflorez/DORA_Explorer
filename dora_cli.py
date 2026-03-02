@@ -245,9 +245,9 @@ def export_excel(
     """Export metrics to an Excel copy of DORA_DB.xlsx. Returns the filepath."""
     from azure_api import parse_dt
 
-    template = Path(__file__).resolve().parent / "DORA_DB_v3.xlsx"
+    template = Path(__file__).resolve().parent / "DORA_DB_v4.xlsx"
     if not template.exists():
-        print("  (DORA_DB_v3.xlsx template not found, skipping Excel export)")
+        print("  (DORA_DB_v4.xlsx template not found, skipping Excel export)")
         return ""
 
     wb = openpyxl.load_workbook(template)
