@@ -468,25 +468,22 @@ def export_charts(
     # header strip + 2x2 charts + legend strip
     gs = gridspec.GridSpec(
         3, 2, figure=fig,
-        top=0.88, bottom=0.07,
+        top=0.84, bottom=0.07,
         left=0.06, right=0.97,
         hspace=0.55, wspace=0.25,
         height_ratios=[1, 1, 0.08],
     )
 
     # ── Header band ───────────────────────────────────────────────
-    ax_hdr = fig.add_axes([0, 0.91, 1.0, 0.09])
+    ax_hdr = fig.add_axes([0, 0.94, 1.0, 0.06])
     ax_hdr.set_xlim(0, 1); ax_hdr.set_ylim(0, 1); ax_hdr.axis("off")
     ax_hdr.add_patch(plt.Rectangle((0, 0), 1, 1, fc=ELIA_ORANGE, ec="none",
                                     transform=ax_hdr.transAxes, zorder=0))
-    ax_hdr.text(0.02, 0.65, project, fontsize=18, fontweight="bold",
+    ax_hdr.text(0.02, 0.50, project, fontsize=18, fontweight="bold",
                 color=WHITE, va="center", transform=ax_hdr.transAxes)
-    ax_hdr.text(0.02, 0.20,
-                f"Mode: {mode}   |   Period: {xlabels[0]} – {xlabels[-1]}   |   Org: {org}",
-                fontsize=10, color=WHITE, alpha=0.88, va="center",
-                transform=ax_hdr.transAxes)
-    ax_hdr.text(0.975, 0.50, "elia", fontsize=24, fontweight="bold",
-                color=WHITE, alpha=0.30, va="center", ha="right",
+    ax_hdr.text(0.98, 0.50,
+                f"Mode: {mode}   |   Period: {xlabels[0]} – {xlabels[-1]}",
+                fontsize=10, color=WHITE, alpha=0.88, va="center", ha="right",
                 transform=ax_hdr.transAxes)
 
     # ── Per-metric chart helper ───────────────────────────────────
@@ -535,19 +532,19 @@ def export_charts(
         ax.set_ylim(0, max_v * 1.38)
 
         # Metric title (top-left, above axes)
-        ax.text(-0.01, 1.18, title, transform=ax.transAxes,
+        ax.text(-0.01, 1.08, title, transform=ax.transAxes,
                 fontsize=10.5, fontweight="bold", color=ELIA_DARK, va="top")
 
         # Overall KPI (top-right, above axes)
         if overall_val is not None:
             level = classify_dora(metric_key, overall_val)
             lc = bar_color(level)
-            ax.text(1.01, 1.18, fmt_kpi(overall_val), transform=ax.transAxes,
+            ax.text(1.01, 1.08, fmt_kpi(overall_val), transform=ax.transAxes,
                     fontsize=20, fontweight="bold", color=lc, va="top", ha="right")
-            ax.text(1.01, 1.05, f"▶ {level}", transform=ax.transAxes,
+            ax.text(1.01, 0.97, f"▶ {level}", transform=ax.transAxes,
                     fontsize=8.5, fontweight="bold", color=lc, va="top", ha="right")
         else:
-            ax.text(1.01, 1.18, "N/A", transform=ax.transAxes,
+            ax.text(1.01, 1.08, "N/A", transform=ax.transAxes,
                     fontsize=20, fontweight="bold", color="#BBBBBB",
                     va="top", ha="right")
 
