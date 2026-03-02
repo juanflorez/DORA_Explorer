@@ -424,6 +424,7 @@ def export_charts(
     df: dict, lt: dict, cfr: dict, mttr: dict,
 ) -> str:
     """Export a PNG chart showing all 4 DORA metrics monthly trend. Returns the filepath."""
+    org = " "  # set to org name to display it on charts
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -602,7 +603,7 @@ def export_charts(
 
     # ── Footer ────────────────────────────────────────────────────
     fig.text(0.5, 0.01,
-             f"DORA Explorer  |  Generated {datetime.now().strftime('%d %b %Y')}  |  {org}",
+             f"DORA Explorer  |  Generated {datetime.now().strftime('%d %b %Y')}",
              ha="center", fontsize=8, color="#666666")
 
     # ── Save ──────────────────────────────────────────────────────

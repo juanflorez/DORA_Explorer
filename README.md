@@ -65,7 +65,7 @@ python dora_cli.py -org "https://myorg.visualstudio.com" -project "MyProject" -m
 
 After displaying the metrics table, the tool:
 - Exports a **JSON report** to `reports/`
-- Exports an **Excel report** (using the `DORA_DB_v3.xlsx` template) to `reports/`
+- Exports an **Excel report** (using the `DORA_DB_v4.xlsx` template) to `reports/`
 - Offers an **interactive drill-down** into any cell (e.g. `df 2026-01` to see individual deployments for that month)
 
 ### Drill-down commands
@@ -84,7 +84,7 @@ q             # Quit
 dora_cli.py          CLI entry point — prompts, table output, export, drill-down
 dora_metrics.py      DORA metric computation (pipeline and PR modes)
 azure_api.py         Azure DevOps REST API client (read-only)
-DORA_DB_v3.xlsx      Excel template with formulas for auto-calculated metrics
+DORA_DB_v4.xlsx      Excel template with formulas for auto-calculated metrics
 env.tks              Your Azure DevOps PAT (not committed)
 reports/             Generated JSON and Excel reports (gitignored)
 ```

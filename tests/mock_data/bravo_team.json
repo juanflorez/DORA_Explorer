@@ -1,0 +1,368 @@
+{
+  "metadata": {
+    "team": "Bravo Team",
+    "org": "elia-digitization",
+    "mode": "pipelines",
+    "months": [
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-02"
+    ],
+    "weakness": "Lead Time for Changes (15\u201325 days) \u2014 commits take too long to reach production.",
+    "improve": "Break large PRs into smaller increments and automate environment provisioning to cut the review-to-deploy pipeline from weeks to days.",
+    "stats": {
+      "total_builds": 17,
+      "succeeded": 15,
+      "failed": 2,
+      "cfr_approx_pct": 11.8,
+      "df_approx_days": 12.0
+    }
+  },
+  "builds": [
+    {
+      "id": 2000,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-09-05T16:07:20Z",
+      "sourceVersion": "sha0000002000",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2001,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-09-16T20:52:33Z",
+      "sourceVersion": "sha0000002001",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2002,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-09-27T03:11:01Z",
+      "sourceVersion": "sha0000002002",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2003,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-10-08T07:54:08Z",
+      "sourceVersion": "sha0000002003",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2004,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-10-18T11:40:12Z",
+      "sourceVersion": "sha0000002004",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2005,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-10-31T05:03:12Z",
+      "sourceVersion": "sha0000002005",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2006,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-11-11T04:26:16Z",
+      "sourceVersion": "sha0000002006",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2007,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-11-22T16:15:02Z",
+      "sourceVersion": "sha0000002007",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2008,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-12-05T08:25:54Z",
+      "sourceVersion": "sha0000002008",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2009,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-12-13T10:50:59Z",
+      "sourceVersion": "sha0000002009",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2010,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-12-26T21:18:41Z",
+      "sourceVersion": "sha0000002010",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2011,
+      "result": "failed",
+      "status": "completed",
+      "finishTime": "2026-01-04T13:19:16Z",
+      "sourceVersion": "sha0000002011",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2012,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2026-01-18T13:36:04Z",
+      "sourceVersion": "sha0000002012",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2013,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2026-01-27T22:23:18Z",
+      "sourceVersion": "sha0000002013",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2014,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2026-02-06T22:24:03Z",
+      "sourceVersion": "sha0000002014",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2015,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2026-02-17T23:44:18Z",
+      "sourceVersion": "sha0000002015",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    },
+    {
+      "id": 2016,
+      "result": "failed",
+      "status": "completed",
+      "finishTime": "2026-02-26T23:46:42Z",
+      "sourceVersion": "sha0000002016",
+      "definition": {
+        "id": 2,
+        "name": "Bravo-ci"
+      },
+      "repository": {
+        "id": "repo-bravo",
+        "name": "bravo-app"
+      },
+      "project": {
+        "id": "proj-bravo",
+        "name": "Bravo Team"
+      }
+    }
+  ],
+  "commits": {
+    "sha0000002000": "2025-08-18T01:18:19Z",
+    "sha0000002001": "2025-08-29T05:57:29Z",
+    "sha0000002002": "2025-09-10T22:32:42Z",
+    "sha0000002003": "2025-09-15T00:28:26Z",
+    "sha0000002004": "2025-10-02T15:00:36Z",
+    "sha0000002005": "2025-10-11T14:44:31Z",
+    "sha0000002006": "2025-10-19T01:08:57Z",
+    "sha0000002007": "2025-11-05T13:06:56Z",
+    "sha0000002008": "2025-11-16T11:19:52Z",
+    "sha0000002009": "2025-11-25T19:46:36Z",
+    "sha0000002010": "2025-12-05T20:14:39Z",
+    "sha0000002011": "2025-12-19T03:38:54Z",
+    "sha0000002012": "2026-01-03T11:28:51Z",
+    "sha0000002013": "2026-01-11T16:35:23Z",
+    "sha0000002014": "2026-01-13T04:11:22Z",
+    "sha0000002015": "2026-02-02T17:09:32Z",
+    "sha0000002016": "2026-02-11T13:30:55Z"
+  }
+}

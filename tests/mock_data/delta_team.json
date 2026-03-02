@@ -1,0 +1,148 @@
+{
+  "metadata": {
+    "team": "Delta Team",
+    "org": "elia-digitization",
+    "mode": "pipelines",
+    "months": [
+      "2025-09",
+      "2025-10",
+      "2025-11",
+      "2025-12",
+      "2026-01",
+      "2026-02"
+    ],
+    "weakness": "Deployment Frequency (one release every ~30 days) \u2014 releases are too infrequent.",
+    "improve": "Adopt trunk-based development and continuous delivery practices to deploy smaller changes more frequently and reduce per-release risk.",
+    "stats": {
+      "total_builds": 6,
+      "succeeded": 6,
+      "failed": 0,
+      "cfr_approx_pct": 0.0,
+      "df_approx_days": 30.0
+    }
+  },
+  "builds": [
+    {
+      "id": 4000,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-09-04T07:22:08Z",
+      "sourceVersion": "sha0000004000",
+      "definition": {
+        "id": 4,
+        "name": "Delta-ci"
+      },
+      "repository": {
+        "id": "repo-delta",
+        "name": "delta-app"
+      },
+      "project": {
+        "id": "proj-delta",
+        "name": "Delta Team"
+      }
+    },
+    {
+      "id": 4001,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-09-27T15:31:12Z",
+      "sourceVersion": "sha0000004001",
+      "definition": {
+        "id": 4,
+        "name": "Delta-ci"
+      },
+      "repository": {
+        "id": "repo-delta",
+        "name": "delta-app"
+      },
+      "project": {
+        "id": "proj-delta",
+        "name": "Delta Team"
+      }
+    },
+    {
+      "id": 4002,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-10-25T05:03:05Z",
+      "sourceVersion": "sha0000004002",
+      "definition": {
+        "id": 4,
+        "name": "Delta-ci"
+      },
+      "repository": {
+        "id": "repo-delta",
+        "name": "delta-app"
+      },
+      "project": {
+        "id": "proj-delta",
+        "name": "Delta Team"
+      }
+    },
+    {
+      "id": 4003,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-11-24T21:29:46Z",
+      "sourceVersion": "sha0000004003",
+      "definition": {
+        "id": 4,
+        "name": "Delta-ci"
+      },
+      "repository": {
+        "id": "repo-delta",
+        "name": "delta-app"
+      },
+      "project": {
+        "id": "proj-delta",
+        "name": "Delta Team"
+      }
+    },
+    {
+      "id": 4004,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2025-12-26T07:21:46Z",
+      "sourceVersion": "sha0000004004",
+      "definition": {
+        "id": 4,
+        "name": "Delta-ci"
+      },
+      "repository": {
+        "id": "repo-delta",
+        "name": "delta-app"
+      },
+      "project": {
+        "id": "proj-delta",
+        "name": "Delta Team"
+      }
+    },
+    {
+      "id": 4005,
+      "result": "succeeded",
+      "status": "completed",
+      "finishTime": "2026-02-06T08:30:55Z",
+      "sourceVersion": "sha0000004005",
+      "definition": {
+        "id": 4,
+        "name": "Delta-ci"
+      },
+      "repository": {
+        "id": "repo-delta",
+        "name": "delta-app"
+      },
+      "project": {
+        "id": "proj-delta",
+        "name": "Delta Team"
+      }
+    }
+  ],
+  "commits": {
+    "sha0000004000": "2025-08-20T15:32:42Z",
+    "sha0000004001": "2025-09-10T22:10:31Z",
+    "sha0000004002": "2025-10-12T12:06:15Z",
+    "sha0000004003": "2025-11-11T12:31:34Z",
+    "sha0000004004": "2025-12-12T20:03:56Z",
+    "sha0000004005": "2026-01-22T03:28:02Z"
+  }
+}
