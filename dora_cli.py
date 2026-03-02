@@ -431,11 +431,11 @@ def export_charts(
 
     # ── Elia brand palette ────────────────────────────────────────
     ELIA_ORANGE = "#FF7300"
-    ELIA_DARK   = "#313131"
+    ELIA_DARK   = "#EEEEEE"
     ELIA_PETROL = "#004B5A"
-    ELIA_LIGHT  = "#F5F5F5"
-    ELIA_MID    = "#E0E0E0"
-    WHITE       = "#FFFFFF"
+    ELIA_LIGHT  = "#111111"
+    ELIA_MID    = "#333333"
+    WHITE       = "#000000"
 
     C_ELITE = "#00C853"
     C_HIGH  = "#64DD17"
@@ -500,9 +500,9 @@ def export_charts(
         bar_meta = []
         for i, v in enumerate(values):
             if v is None:
-                ax.bar(i, 0.001, color="#DDDDDD", alpha=0.4, width=0.62, zorder=2)
+                ax.bar(i, 0.001, color="#444444", alpha=0.4, width=0.62, zorder=2)
                 ax.text(i, max_v * 0.04, "N/A", ha="center", va="bottom",
-                        fontsize=7, color="#BBBBBB", zorder=3)
+                        fontsize=7, color="#666666", zorder=3)
             else:
                 level = classify_dora(metric_key, v)
                 color = bar_color(level)
@@ -527,7 +527,7 @@ def export_charts(
 
         ax.set_xticks(range(n))
         ax.set_xticklabels(xlabels, fontsize=8.5, color=ELIA_DARK, rotation=0)
-        ax.tick_params(axis="y", labelsize=8, labelcolor="#555555")
+        ax.tick_params(axis="y", labelsize=8, labelcolor="#AAAAAA")
         ax.set_xlim(-0.6, n - 0.4)
         ax.set_ylim(0, max_v * 1.38)
 
@@ -545,7 +545,7 @@ def export_charts(
                     fontsize=8.5, fontweight="bold", color=lc, va="top", ha="right")
         else:
             ax.text(1.01, 1.08, "N/A", transform=ax.transAxes,
-                    fontsize=20, fontweight="bold", color="#BBBBBB",
+                    fontsize=20, fontweight="bold", color="#555555",
                     va="top", ha="right")
 
         # Left accent bar (Elia petrol)
@@ -603,7 +603,7 @@ def export_charts(
     # ── Footer ────────────────────────────────────────────────────
     fig.text(0.5, 0.01,
              f"DORA Explorer  |  Generated {datetime.now().strftime('%d %b %Y')}  |  {org}",
-             ha="center", fontsize=8, color="#999999")
+             ha="center", fontsize=8, color="#666666")
 
     # ── Save ──────────────────────────────────────────────────────
     reports_dir = Path(__file__).resolve().parent / "reports"
