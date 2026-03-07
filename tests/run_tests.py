@@ -26,7 +26,9 @@ from dora_metrics import (
     compute_lead_times_by_month,
     compute_mttr_by_month,
 )
-from dora_cli import export_charts, export_excel, export_json
+from dora_charts import generate_charts as export_charts
+from dora_cli import export_excel, export_json
+from chart_from_excel import generate_from_excel
 
 MOCK_DATA_DIR = Path(__file__).parent / "mock_data"
 TEAMS = ["alpha", "bravo", "charlie", "delta"]
@@ -102,7 +104,7 @@ async def run_team(data: dict) -> None:
     # ── Export all three report formats ──────────────────────────
     export_json(  org, team, mode, months, df_r, lt_r, cfr_r, mttr_r)
     export_excel( org, team, mode, months, df_r, lt_r, cfr_r, mttr_r)
-    export_charts(org, team, mode, months, df_r, lt_r, cfr_r, mttr_r)
+    export_charts(team, mode, months, df_r, lt_r, cfr_r, mttr_r)
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -120,6 +122,18 @@ async def main():
             continue
         data = json.loads(path.read_text())
         await run_team(data)
+
+    # ── Excel-based teams ─────────────────────────────────────────
+    excel_fixtures = [
+        Path(__file__).resolve().parent.parent / "DORA_DB_Zulu.xlsx",
+    ]
+    for xl in excel_fixtures:
+        if not xl.exists():
+            print(f"\n  [SKIP] {xl.name} not found")
+            continue
+        print(f"\n{'─' * 60}")
+        print(f"  Excel fixture: {xl.name}")
+        generate_from_excel(xl)
 
     print(f"\n{'=' * 60}")
     print("  All reports written to reports/")
