@@ -8,7 +8,7 @@ Row layout (data columns start at F, column 6):
   Row 1 — Date of measurement
   Row 2 — Releases to ACC since last measurement
   Row 3 — Releases to PROD since last measurement
-  Row 4 — Failed releases to PROD (count) OR CFR as a decimal fraction (0.18 = 18%)
+  Row 4 — Failed releases to PROD (count); CFR is computed as failed / prod_releases × 100
   Row 5 — Average lead time: days from commit to production
   Row 6 — Average MTTR: days to recover from important failures
 
@@ -66,13 +66,21 @@ def _read_sheet(ws) -> tuple[list[str], dict, dict, dict, dict]:
     if not dates:
         raise ValueError("No date row found — check that row 1 contains dates from column F onwards")
 
-    # Drop future dates (dates after today)
+    # Drop future dates and enforce monotonically increasing order.
+    # A date that goes backwards (e.g. 2025-03 after 2026-02) is a typo in the
+    # spreadsheet; warn and skip it rather than producing negative period lengths.
     today = datetime.now()
-    dates_and_data = [
-        (d, acc_rel[i], prod_rel[i], cfr_raw[i], lt_days[i], mttr_days_list[i])
-        for i, d in enumerate(dates)
-        if d <= today
-    ]
+    dates_and_data = []
+    last_date = None
+    for i, d in enumerate(dates):
+        if d > today:
+            continue
+        if last_date is not None and d <= last_date:
+            print(f"  [WARN] Skipping out-of-order date {d.strftime('%Y-%m')} "
+                  f"(previous was {last_date.strftime('%Y-%m')}) — check row 1 for a year typo")
+            continue
+        dates_and_data.append((d, acc_rel[i], prod_rel[i], cfr_raw[i], lt_days[i], mttr_days_list[i]))
+        last_date = d
     if not dates_and_data:
         raise ValueError("All dates are in the future — nothing to chart")
 
@@ -135,29 +143,19 @@ def _read_sheet(ws) -> tuple[list[str], dict, dict, dict, dict]:
     lt["_overall"] = {"avg_hours": sum(lt_vals) / len(lt_vals) if lt_vals else None}
 
     # ── Change Failure Rate ─────────────────────────────────────────────────────
-    # Accepts either:
-    #   • decimal fraction  (0 < v ≤ 1)  → multiply by 100 for %
-    #   • failure count     (v > 1)       → divide by prod_releases × 100 for %
+    # Row 4 is always a count of failed releases; CFR = failed / prod_releases × 100
     cfr: dict = {}
     cfr_vals: list[float] = []
-    for idx, i in enumerate(active):
+    for i in active:
         mk = dates[i].strftime("%Y-%m")
-        v = cfr_raw[i]
+        failures = cfr_raw[i]
         n = prod_rel[i]
-        if not v or v == 0:
-            cfr[mk] = {"rate_pct": None}
-        elif 0 < v <= 1.0:
-            pct = v * 100
+        if failures and n and n > 0:
+            pct = (failures / n) * 100
             cfr[mk] = {"rate_pct": pct}
             cfr_vals.append(pct)
         else:
-            # Treat as failure count
-            if n and n > 0:
-                pct = (v / n) * 100
-                cfr[mk] = {"rate_pct": pct}
-                cfr_vals.append(pct)
-            else:
-                cfr[mk] = {"rate_pct": None}
+            cfr[mk] = {"rate_pct": None}
     cfr["_overall"] = {"rate_pct": sum(cfr_vals) / len(cfr_vals) if cfr_vals else None}
 
     # ── Mean Time to Recovery ────────────────────────────────────────────────────
@@ -199,7 +197,8 @@ def generate_from_excel(excel_path: str | Path) -> list[str]:
         months, df, lt, cfr, mttr = _read_sheet(ws)
         print(f"  Months with data: {months[0]} – {months[-1]} ({len(months)} points)")
 
-        out = generate_charts(team, "manual", months, df, lt, cfr, mttr)
+        out = generate_charts(team, "manual", months, df, lt, cfr, mttr,
+                              output_dir=excel_path.parent)
         outputs.append(out)
 
     return outputs
