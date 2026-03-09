@@ -409,7 +409,36 @@ def export_excel(
         c.value = datetime(year, month, 1)
         c.number_format = 'DD/MM/YYYY'
 
-    # ── 8. Save ──
+    # ── 8. Write _Manual tab for chart_from_excel compatibility ──────────────
+    # Row 3 = succeeded deployments (used for DF), row 4 = failed deployments.
+    # chart_from_excel computes: DF = period/row3, CFR = row4/(row3+row4)*100.
+    safe_sheet = (project[:20] + "_Manual").replace("/", "-").replace("\\", "-").replace("*", "-").replace("[", "").replace("]", "").replace(":", "-").replace("?", "")
+    ws_manual = wb.create_sheet(safe_sheet)
+    row_labels = [
+        "DATE-MEASUREMENT →",
+        "RELEASES TO ACC →",
+        "RELEASES TO PROD (succeeded) →",
+        "FAILED RELEASES TO PROD →",
+        "AVG LEAD TIME (days) →",
+        "AVG MTTR (days) →",
+    ]
+    for r, lbl in enumerate(row_labels, 1):
+        ws_manual.cell(row=r, column=5).value = lbl
+
+    for col_idx, mk in enumerate(months, 6):
+        year, month_num = map(int, mk.split("-"))
+        c = ws_manual.cell(row=1, column=col_idx)
+        c.value = datetime(year, month_num, 1)
+        c.number_format = "DD/MM/YYYY"
+        ws_manual.cell(row=2, column=col_idx).value = 0  # ACC not tracked
+        ws_manual.cell(row=3, column=col_idx).value = df.get("monthly", {}).get(mk, {}).get("count") or 0
+        ws_manual.cell(row=4, column=col_idx).value = cfr.get(mk, {}).get("failed") or 0
+        lt_h = lt.get(mk, {}).get("avg_hours")
+        ws_manual.cell(row=5, column=col_idx).value = round(lt_h / 24, 6) if lt_h else 0
+        mttr_h = mttr.get(mk, {}).get("avg_hours")
+        ws_manual.cell(row=6, column=col_idx).value = round(mttr_h / 24, 6) if mttr_h else 0
+
+    # ── 9. Save ──
     reports_dir = Path(__file__).resolve().parent / "reports"
     reports_dir.mkdir(exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -8,7 +8,7 @@ Row layout (data columns start at F, column 6):
   Row 1 — Date of measurement
   Row 2 — Releases to ACC since last measurement
   Row 3 — Releases to PROD since last measurement
-  Row 4 — Failed releases to PROD (count); CFR is computed as failed / prod_releases × 100
+  Row 4 — Failed releases to PROD (count); CFR is computed as failed / (prod + failed) × 100
   Row 5 — Average lead time: days from commit to production
   Row 6 — Average MTTR: days to recover from important failures
 
@@ -143,15 +143,17 @@ def _read_sheet(ws) -> tuple[list[str], dict, dict, dict, dict]:
     lt["_overall"] = {"avg_hours": sum(lt_vals) / len(lt_vals) if lt_vals else None}
 
     # ── Change Failure Rate ─────────────────────────────────────────────────────
-    # Row 4 is always a count of failed releases; CFR = failed / prod_releases × 100
+    # Row 3 = succeeded releases, row 4 = failed releases.
+    # CFR = failed / (succeeded + failed) × 100
     cfr: dict = {}
     cfr_vals: list[float] = []
     for i in active:
         mk = dates[i].strftime("%Y-%m")
         failures = cfr_raw[i]
-        n = prod_rel[i]
-        if failures and n and n > 0:
-            pct = (failures / n) * 100
+        succeeded = prod_rel[i]
+        total = succeeded + failures
+        if failures and total > 0:
+            pct = (failures / total) * 100
             cfr[mk] = {"rate_pct": pct}
             cfr_vals.append(pct)
         else:
@@ -194,7 +196,12 @@ def generate_from_excel(excel_path: str | Path) -> list[str]:
         ws = wb[sheet_name]
         print(f"\nProcessing sheet '{sheet_name}' → team: '{team}'")
 
-        months, df, lt, cfr, mttr = _read_sheet(ws)
+        try:
+            months, df, lt, cfr, mttr = _read_sheet(ws)
+        except ValueError as exc:
+            print(f"  [SKIP] {exc}")
+            continue
+
         print(f"  Months with data: {months[0]} – {months[-1]} ({len(months)} points)")
 
         out = generate_charts(team, "manual", months, df, lt, cfr, mttr,

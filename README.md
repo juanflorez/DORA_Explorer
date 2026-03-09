@@ -84,26 +84,33 @@ If you collect DORA metrics manually (without Azure DevOps access), use
 `chart_from_excel.py` to generate the same branded PNG charts directly from
 a spreadsheet.
 
-### Workbook format
+### Template
 
-Use `reports/DORA_DB_Generator.xlsx` as your template. Each team needs a sheet
-whose name ends with `_Manual` — the part before `_Manual` becomes the team
-name on the chart (e.g. `ZULU_Manual` → *ZULU*).
+Use **`DORA_DB_GeneratorV3.xlsx`** as your starting point. It contains a sheet
+called `TEAM_NAME_Manual` — copy and rename it for each team you want to track.
+The part of the sheet name **before** `_Manual` becomes the team name on the
+chart (e.g. `ZULU_Manual` → *ZULU*).
 
-Data columns start at **column F**. Row layout:
+### How to fill in the `_Manual` sheet
 
-| Row | Content |
-|-----|---------|
-| 1 | Date of measurement (one column per period) |
-| 2 | Releases to ACC since last measurement |
-| 3 | Releases to PROD since last measurement |
-| 4 | Failed releases to PROD (count) |
-| 5 | Average lead time — days from commit to production |
-| 6 | Average MTTR — days to recover from important failures |
+Columns A–E are fixed (labels and auto-calculated totals — do not edit them).
+**Enter your data from column F onwards**, one column per measurement period
+(typically one month).
 
-The script automatically selects the **last 6 non-future months** and skips
-columns that are entirely zero. Dates must be in chronological order; any
-out-of-order date (e.g. a wrong year) triggers a warning and is skipped.
+| Row | What to enter | Unit / notes |
+|-----|---------------|--------------|
+| 1 | Date of measurement | Pre-filled as 1st of each month — verify the year is correct |
+| 2 | Successful releases to **ACC** (acceptance/staging) since last measurement | Count |
+| 3 | Successful releases to **PROD** since last measurement | Count |
+| 4 | **Failed** releases to PROD since last measurement | Count |
+| 5 | Average time from commit to production | **Days** (e.g. `0.5` = 12 hours) |
+| 6 | Average time to recover from important failures | **Days** (e.g. `1.5` = 36 hours) |
+
+**Tips:**
+- Leave future months as `0` — the script ignores them automatically.
+- The chart always shows the **last 6 non-future months** with at least one non-zero value.
+- Dates in row 1 must be in chronological order. A wrong year (e.g. `2025-03` where `2026-03` was intended) will trigger a warning and that column will be skipped.
+- CFR is derived automatically as `failed / (succeeded + failed) × 100` — do not enter a percentage.
 
 ### Running
 
@@ -124,7 +131,7 @@ dora_metrics.py      DORA metric computation (pipeline and PR modes)
 dora_charts.py       Chart generation module (used by both CLI and Excel script)
 chart_from_excel.py  Generate charts from a manually populated Excel workbook
 azure_api.py         Azure DevOps REST API client (read-only)
-DORA_DB_v4.xlsx      Excel template with formulas for auto-calculated metrics
+DORA_DB_GeneratorV3.xlsx  Excel template — copy the _Manual sheet per team and fill in metrics
 env.tks              Your Azure DevOps PAT (not committed)
 reports/             Generated JSON and Excel reports (gitignored)
 ```
