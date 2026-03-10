@@ -30,7 +30,7 @@ A CLI tool that extracts [DORA metrics](https://dora.dev/) from Azure DevOps pro
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
-   pip install httpx openpyxl matplotlib
+   pip install -r requirements.txt
    ```
 
 3. **Store your Azure DevOps PAT**
