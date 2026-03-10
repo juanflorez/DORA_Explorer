@@ -86,42 +86,57 @@ a spreadsheet.
 
 ### Template
 
-Use **`DORA_DB_GeneratorV3.xlsx`** as your starting point. It contains a sheet
-called `TEAM_NAME_Manual` — copy and rename it for each team you want to track.
-The part of the sheet name **before** `_Manual` becomes the team name on the
-chart (e.g. `ZULU_Manual` → *ZULU*).
+Use **`DORA_DB_GeneratorV4.xlsx`** as your starting point. Make a copy of the
+file for each team (or keep multiple teams in one file using multiple sheets —
+see below).
 
-### How to fill in the `_Manual` sheet
+### Two ways to populate the workbook
 
-Columns A–E are fixed (labels and auto-calculated totals — do not edit them).
-**Enter your data from column F onwards**, one column per measurement period
-(typically one month).
+#### Option A — Detailed tracking (Deployments, Commits, Issues tabs)
 
-| Row | What to enter | Unit / notes |
-|-----|---------------|--------------|
-| 1 | Date of measurement | Pre-filled as 1st of each month — verify the year is correct |
-| 2 | Successful releases to **ACC** (acceptance/staging) since last measurement | Count |
-| 3 | Successful releases to **PROD** since last measurement | Count |
-| 4 | **Failed** releases to PROD since last measurement | Count |
-| 5 | Average time from commit to production | **Days** (e.g. `0.5` = 12 hours) |
-| 6 | Average time to recover from important failures | **Days** (e.g. `1.5` = 36 hours) |
+Fill in the raw event data in the three source tabs:
 
-**Tips:**
-- Leave future months as `0` — the script ignores them automatically.
-- The chart always shows the **last 6 non-future months** with at least one non-zero value.
-- Dates in row 1 must be in chronological order. A wrong year (e.g. `2025-03` where `2026-03` was intended) will trigger a warning and that column will be skipped.
-- CFR is derived automatically as `failed / (succeeded + failed) × 100` — do not enter a percentage.
+- **Deployments** — one row per deployment: date and whether it failed
+- **Commits** — one row per commit: commit date and which deployment it belonged to
+- **Issues** — one row per production incident: date reported and which deployment fixed it
 
-### Running
+The **DORA** tab calculates the four metrics automatically from this data.
+
+#### Option B — Lightweight manual entry (`_Manual` tab)
+
+1. **Rename the sheet** from `TEAM_NAME_Manual` to `<YourTeam>_Manual`
+   (e.g. `ZULU_Manual`). The part before `_Manual` becomes the team name on the chart.
+
+2. **Fill in the yellow-highlighted cells F1 to K6** — one column per measurement
+   period (typically one month):
+
+   | Cell | What to enter | Unit / notes |
+   |------|---------------|--------------|
+   | Row 1 | Date of measurement | Pre-filled as 1st of each month — check the year |
+   | Row 2 | Successful releases to **ACC** (staging) since last measurement | Count |
+   | Row 3 | Successful releases to **PROD** since last measurement | Count |
+   | Row 4 | **Failed** releases to PROD since last measurement | Count |
+   | Row 5 | Average time from commit to production | **Days** (e.g. `0.5` = 12 h) |
+   | Row 6 | Average time to recover from important failures | **Days** (e.g. `1.5` = 36 h) |
+
+   **Tips:**
+   - Do not edit columns A–E (labels and auto-calculated summaries).
+   - Leave future months as `0` — the script skips them automatically.
+   - Dates in row 1 must be chronological. A wrong year triggers a warning and that column is skipped.
+   - CFR is derived automatically as `failed / (succeeded + failed) × 100`.
+
+### Generating the chart
 
 ```bash
 source .venv/bin/activate
 python chart_from_excel.py path/to/your-workbook.xlsx
 ```
 
-The PNG chart is saved **in the same folder as the Excel file**, named
-`DORA_chart_<TEAM>_manual_<timestamp>.png`. A workbook with multiple
-`_Manual` sheets produces one chart per sheet.
+The script reads every sheet whose name ends with `_Manual`, generates one PNG
+per sheet, and saves it **in the same folder as the Excel file**:
+`DORA_chart_<TEAM>_manual_<timestamp>.png`.
+
+The chart always covers the **last 6 non-future months** that contain at least one non-zero value.
 
 ## Project Structure
 
@@ -131,7 +146,7 @@ dora_metrics.py      DORA metric computation (pipeline and PR modes)
 dora_charts.py       Chart generation module (used by both CLI and Excel script)
 chart_from_excel.py  Generate charts from a manually populated Excel workbook
 azure_api.py         Azure DevOps REST API client (read-only)
-DORA_DB_GeneratorV3.xlsx  Excel template — copy the _Manual sheet per team and fill in metrics
+DORA_DB_GeneratorV4.xlsx  Excel template — fill in source tabs or use the _Manual sheet
 env.tks              Your Azure DevOps PAT (not committed)
 reports/             Generated JSON and Excel reports (gitignored)
 ```
