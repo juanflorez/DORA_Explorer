@@ -136,7 +136,7 @@ The script reads every sheet whose name ends with `_Manual`, generates one PNG
 per sheet, and saves it **in the same folder as the Excel file**:
 `DORA_chart_<TEAM>_manual_<timestamp>.png`.
 
-The chart always covers the **last 6 non-future months** that contain at least one non-zero value.
+The chart always covers the **last 6 months** from the latest entry date that contain at least one non-zero value.
 
 ## Project Structure
 
