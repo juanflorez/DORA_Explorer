@@ -8,7 +8,7 @@ from pathlib import Path
 
 import httpx
 
-BASE_URL = "https://dev.azure.com"
+BASE_URL = "https://tfs.belgrid.net"
 API_VERSION = "7.1"
 
 _URL_PATTERNS = [
@@ -24,6 +24,41 @@ def parse_org(org: str) -> str:
         if m:
             return m.group(1)
     return org
+
+
+def parse_org_and_project(url_or_name: str) -> tuple[str, str | None]:
+    """
+    Parse Azure DevOps org and optional project from URL or plain input.
+
+    Examples:
+      https://dev.azure.com/org/project  -> (org, project)
+      org                               -> (org, None)
+    """
+    s = url_or_name.strip().rstrip("/")
+
+    # TFS on-prem: https://tfs.server/Collection/Project
+    m = re.match(r"https?://[^/]+/([^/]+)/([^/]+)", s)
+    if m:
+        collection = m.group(1)
+        project = m.group(2)
+        return collection, project
+
+    # dev.azure.com/org/project
+    m = re.match(r"https?://dev\.azure\.com/([^/]+)/?(.*)?", s)
+    if m:
+        org = m.group(1)
+        project = m.group(2) or None
+        return org, project or None
+
+    # org.visualstudio.com/project
+    m = re.match(r"https?://([^\.]+)\.visualstudio\.com/?(.*)?", s)
+    if m:
+        org = m.group(1)
+        project = m.group(2) or None
+        return org, project or None
+
+    # fallback: org name only
+    return s, None
 
 
 def auth_header(pat: str) -> dict[str, str]:

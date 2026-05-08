@@ -15,10 +15,9 @@ from azure_api import (
     fetch_all_builds_for_project,
     fetch_builds,
     fetch_pipelines,
-    fetch_projects,
     fetch_pull_requests,
     fetch_repos,
-    parse_org,
+    parse_org_and_project,   # ⬅ neu
     read_pat,
 )
 from dora_charts import generate_charts
@@ -538,8 +537,12 @@ def drill_down(df: dict, lt: dict, cfr: dict, mttr: dict, months: list[str]):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="DORA Metrics CLI — Azure DevOps")
-    parser.add_argument("-org", dest="org", help="Azure DevOps organization (name or URL)")
-    parser.add_argument("-project", dest="project", help="Project name, or 'all' for all projects")
+    parser.add_argument(
+        "-org",
+        dest="org",
+        help="Azure DevOps org OR full project URL (e.g. https://dev.azure.com/org/project)",
+    )
+    parser.add_argument("-project", dest="project", help="Project name, or 'all' for all projects (Deprecated)")
     parser.add_argument("-mode", dest="mode", choices=["pipelines", "pullrequests"], help="Measure using pipelines or pull requests")
     return parser.parse_args()
 
@@ -560,37 +563,22 @@ async def main():
     if not org_input:
         print("No organization provided.")
         sys.exit(1)
-    org = parse_org(org_input)
+    org, project_from_url = parse_org_and_project(org_input)
+
+    print(f"Organization: {org}")
+    if project_from_url:
+        print(f"Project (from URL): {project_from_url}")
+    
     print(f"Organization: {org}")
 
     async with httpx.AsyncClient() as client:
-        # Fetch projects
-        print("\nFetching projects...")
-        try:
-            projects = await fetch_projects(client, org, pat)
-        except httpx.HTTPStatusError as e:
-            print(f"Error fetching projects: {e.response.status_code} {e.response.text[:200]}")
-            sys.exit(1)
-
-        if not projects:
-            print("No projects found.")
-            sys.exit(1)
-
-        print(f"\nFound {len(projects)} project(s):")
-        project_names = [p["name"] for p in projects]
-
-        if args.project and args.project.lower() == "all":
-            selected_projects = projects
-        if args.project and args.project.lower() != "all":
-            matching = [p for p in projects if p["name"].lower() == args.project.lower()]
-            if not matching:
-                print(f"Project '{args.project}' not found. Available: {', '.join(project_names)}")
+        if project_from_url:
+            selected_projects = [{"name": project_from_url}]
+        else:
+            if not args.project:
+                print("Error: No project specified. Provide a project URL or -project.")
                 sys.exit(1)
-            selected_projects = matching
-        if not args.project:
-            proj_choice = prompt_choice(project_names, "a project (0 for all)", allow_all=True)
-            selected_projects = projects if proj_choice is None else [projects[proj_choice]]
-        print(f"\nSelected project(s): {', '.join(p['name'] for p in selected_projects)}")
+            selected_projects = [{"name": args.project}]
 
         # Mode selection
         mode = args.mode
